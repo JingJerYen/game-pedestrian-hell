@@ -1,13 +1,15 @@
-// 玩家：一個藍色方塊（M6 換成行人 sprite）。
-// 只負責左右換道；前進感全部由世界捲動製造，玩家的 Z 永遠是 0。
+// 玩家：一個藍色方塊（之後換成行人 sprite）。
+// 只負責橫向走位（人行道＋迎面車道之間）；前進由 main.ts 的世界捲動處理，
+// 玩家的 Z 永遠固定在 0。
 
 import * as THREE from "three";
-import { TUNING, laneX } from "./tuning";
+import { TUNING, COLS, colX } from "./tuning";
+import type { Obstacles } from "./obstacles";
 
 export class Player {
   readonly mesh: THREE.Mesh;
   readonly size = TUNING.playerSize;
-  private lane = Math.floor(TUNING.laneCount / 2); // 從中間車道出發
+  private col = 0; // 從人行道出發
 
   constructor(scene: THREE.Scene) {
     this.mesh = new THREE.Mesh(
@@ -24,21 +26,31 @@ export class Player {
   }
 
   private move(dir: -1 | 1): void {
-    this.lane = THREE.MathUtils.clamp(this.lane + dir, 0, TUNING.laneCount - 1);
+    this.col = THREE.MathUtils.clamp(this.col + dir, 0, COLS - 1);
   }
 
-  update(dt: number): void {
-    // 往目標車道平滑滑過去（damp 是不受幀率影響的平滑插值）
+  update(dt: number, obstacles: Obstacles): void {
+    // 往目標欄平滑滑過去（damp 是不受幀率影響的平滑插值）
+    const oldX = this.mesh.position.x;
     this.mesh.position.x = THREE.MathUtils.damp(
-      this.mesh.position.x,
-      laneX(this.lane),
+      oldX,
+      colX(this.col),
       TUNING.laneChangeDamp,
       dt,
     );
+    // 橫移會撞進路障就退回原位，目標欄也改回來（不然會一直往牆上擠）
+    if (obstacles.blocksAt(this.mesh.position, this.size)) {
+      this.mesh.position.x = oldX;
+      this.col = THREE.MathUtils.clamp(
+        Math.round(oldX / TUNING.laneWidth) + 1,
+        0,
+        COLS - 1,
+      );
+    }
   }
 
   reset(): void {
-    this.lane = Math.floor(TUNING.laneCount / 2);
-    this.mesh.position.set(laneX(this.lane), this.size.y / 2, 0);
+    this.col = 0;
+    this.mesh.position.set(colX(this.col), this.size.y / 2, 0);
   }
 }
