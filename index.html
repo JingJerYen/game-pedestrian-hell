@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>台灣行人 taiwan-ped</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #1a1a2e;
+        font-family: system-ui, "Noto Sans TC", sans-serif;
+      }
+      canvas {
+        display: block;
+      }
+      #hud {
+        position: fixed;
+        top: 16px;
+        left: 16px;
+        color: #fff;
+        font-size: 28px;
+        font-weight: 700;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+        user-select: none;
+        pointer-events: none;
+      }
+      #death {
+        position: fixed;
+        inset: 0;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        background: rgba(120, 0, 0, 0.45);
+        color: #fff;
+        text-align: center;
+        user-select: none;
+      }
+      #death.show {
+        display: flex;
+      }
+      #death h1 {
+        font-size: 56px;
+        margin: 0;
+        text-shadow: 0 3px 6px rgba(0, 0, 0, 0.7);
+      }
+      #death p {
+        font-size: 24px;
+        margin: 0;
+      }
+      #hint {
+        position: fixed;
+        bottom: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 16px;
+        user-select: none;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="hud">0 m</div>
+    <div id="death">
+      <h1>你被撞了 🛵</h1>
+      <p id="death-score"></p>
+      <p>按任意鍵再走一次</p>
+    </div>
+    <div id="hint">← → 或 A D 換車道</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
