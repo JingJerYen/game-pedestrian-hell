@@ -42,7 +42,7 @@ export class Obstacles {
     const t = TUNING;
     const onRoad = Math.random() < t.obstacleRoadChance;
     const col = onRoad ? 1 : 0; // 車道路障只出現在最靠人行道的路邊車道
-    const size = onRoad ? t.carSize : t.sidewalkObstacleSize;
+    const size = onRoad ? t.vehicles.car.size : t.sidewalkObstacleSize; // 違停以汽車為準
     const colors = onRoad ? PARKED_CAR_COLORS : SIDEWALK_COLORS;
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(size.x, size.y, size.z),

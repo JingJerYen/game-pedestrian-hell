@@ -18,21 +18,45 @@ export const TUNING = {
   // ── 玩家移動 ──
   walkSpeed: 4.2, // 按住 ↑ 的前進速度（公尺/秒）
   backSpeed: 2.6, // 按住 ↓ 的後退速度
-  playerSize: { x: 0.8, y: 1.6, z: 0.8 },
   laneChangeDamp: 10, // 橫移的平滑度（越大移得越俐落）
 
-  // ── 車輛（迎面，會撞死你）──
-  carSize: { x: 1.9, y: 1.4, z: 4.2 },
-  carSpeedMin: 6, // 車自己的車速（就算你站著不動也照這個速度衝過來）
-  carSpeedMax: 13,
+  // ── 玩家型態（難度桿之一：體積越大越難閃。測試用 1/2/3 鍵切換）──
+  playerForms: {
+    walker: { size: { x: 0.8, y: 1.6, z: 0.8 }, color: 0x3b7bff }, // 單人步行
+    stroller: { size: { x: 0.9, y: 1.6, z: 1.8 }, color: 0x2bb5a0 }, // 推嬰兒車（前面多一截）
+    wheelchair: { size: { x: 1.2, y: 1.45, z: 1.5 }, color: 0xe07b39 }, // 輪椅（更寬）
+  },
+
+  // ── 車種（難度桿之二：機車快、卡車大。weight = 出現比重，不用加總成 1）──
+  vehicles: {
+    scooter: {
+      size: { x: 0.9, y: 1.3, z: 2.0 },
+      speedMin: 8,
+      speedMax: 16,
+      weight: 0.35,
+      colors: [0x333338, 0xd94f8a, 0x4fa3d9, 0xf2f2f2],
+    },
+    car: {
+      size: { x: 1.9, y: 1.4, z: 4.2 },
+      speedMin: 6,
+      speedMax: 13,
+      weight: 0.5,
+      colors: [0xd94f4f, 0xe8e8e8, 0x4fd97a, 0xf2c14e, 0x9b59d0, 0x555560],
+    },
+    truck: {
+      size: { x: 2.3, y: 2.6, z: 7.6 },
+      speedMin: 5,
+      speedMax: 9,
+      weight: 0.15,
+      colors: [0x3d6b9e, 0x5e8f6a, 0x8a8a92, 0xc9a227],
+    },
+  },
+
+  // ── 車流 ──
   spawnInterval: 1.0, // 每隔幾秒生成一台迎面車
   spawnDistance: 90, // 車在玩家前方多遠生成
   despawnZ: 15, // 車跑到玩家後方多遠就回收
-
-  // ── 對向車（背景，走不過去）──
-  bgCarSpeedMin: 7,
-  bgCarSpeedMax: 12,
-  bgSpawnInterval: 1.6,
+  bgSpawnInterval: 1.6, // 對向（背景）車的生成間隔
 
   // ── 靜止路障（擋路不致死）──
   obstacleGapMin: 9, // 兩個路障至少隔幾公尺（保證永遠有路可繞）
@@ -44,6 +68,23 @@ export const TUNING = {
   // ── 碰撞 ──
   hitboxShrink: 0.75, // 碰撞箱是視覺大小的幾成（從寬判定：差點撞到 > 冤枉死）
 } as const;
+
+export type PlayerForm = keyof typeof TUNING.playerForms;
+export type VehicleType = keyof typeof TUNING.vehicles;
+
+// 依 weight 比重隨機抽一種車
+export function randomVehicleType(): VehicleType {
+  const entries = Object.entries(TUNING.vehicles) as [
+    VehicleType,
+    { weight: number },
+  ][];
+  let roll = Math.random() * entries.reduce((sum, [, v]) => sum + v.weight, 0);
+  for (const [type, v] of entries) {
+    roll -= v.weight;
+    if (roll <= 0) return type;
+  }
+  return entries[entries.length - 1][0];
+}
 
 // ── 佈局換算（改上面的參數就好，下面不用動）──
 

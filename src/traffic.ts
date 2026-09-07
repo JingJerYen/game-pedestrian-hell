@@ -1,30 +1,34 @@
 // 車輛分兩種：
 // 迎面車（在可玩車道上衝向玩家，會撞死人）；
 // 對向車（分隔島另一邊，從鏡頭後方開往遠處，純背景嚇嚇你）。
-// 兩種都有自己的車速，不管玩家走不走都在動。
+// 車種（機車/汽車/卡車）的尺寸、速度、出現比重都定義在 tuning.ts 的 vehicles。
 
 import * as THREE from "three";
-import { TUNING, colX, bgLaneX } from "./tuning";
-import { aabbHit } from "./collision";
+import { TUNING, colX, bgLaneX, randomVehicleType, type VehicleType } from "./tuning";
+import { aabbHit, type Size3 } from "./collision";
 import type { Player } from "./player";
 
 interface Car {
   mesh: THREE.Mesh;
   speed: number; // 車自己的車速（會加在世界捲動之上）
+  size: Size3; // 碰撞尺寸（依車種不同）
 }
-
-const CAR_COLORS = [0xd94f4f, 0xe8e8e8, 0x4fd97a, 0xf2c14e, 0x9b59d0, 0x555560];
 
 export class Traffic {
   private readonly oncoming: Car[] = [];
   private readonly background: Car[] = [];
   private spawnTimer = 0;
   private bgSpawnTimer = 0;
-  private readonly geometry: THREE.BoxGeometry;
+  // 每種車共用一份幾何，生成時只換材質顏色
+  private readonly geometries = new Map<VehicleType, THREE.BoxGeometry>();
 
   constructor(private readonly scene: THREE.Scene) {
-    const { carSize } = TUNING;
-    this.geometry = new THREE.BoxGeometry(carSize.x, carSize.y, carSize.z);
+    for (const [type, v] of Object.entries(TUNING.vehicles)) {
+      this.geometries.set(
+        type as VehicleType,
+        new THREE.BoxGeometry(v.size.x, v.size.y, v.size.z),
+      );
+    }
   }
 
   // dz = 這一幀世界捲了多少；blockedCols = 被違停車佔住、不該生成車的車道
@@ -62,15 +66,20 @@ export class Traffic {
     }
   }
 
-  private makeCar(x: number, z: number): THREE.Mesh {
-    const color = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
+  private makeCar(type: VehicleType, x: number, z: number): Car {
+    const v = TUNING.vehicles[type];
+    const color = v.colors[Math.floor(Math.random() * v.colors.length)];
     const mesh = new THREE.Mesh(
-      this.geometry,
+      this.geometries.get(type)!,
       new THREE.MeshLambertMaterial({ color }),
     );
-    mesh.position.set(x, TUNING.carSize.y / 2, z);
+    mesh.position.set(x, v.size.y / 2, z);
     this.scene.add(mesh);
-    return mesh;
+    return {
+      mesh,
+      speed: THREE.MathUtils.lerp(v.speedMin, v.speedMax, Math.random()),
+      size: v.size,
+    };
   }
 
   private spawnOncoming(blockedCols: ReadonlySet<number>): void {
@@ -81,24 +90,20 @@ export class Traffic {
     }
     if (candidates.length === 0) return; // 車道全被違停佔滿就這輪不生
     const col = candidates[Math.floor(Math.random() * candidates.length)];
-    this.oncoming.push({
-      mesh: this.makeCar(colX(col), -t.spawnDistance),
-      speed: THREE.MathUtils.lerp(t.carSpeedMin, t.carSpeedMax, Math.random()),
-    });
+    this.oncoming.push(
+      this.makeCar(randomVehicleType(), colX(col), -t.spawnDistance),
+    );
   }
 
   private spawnBackground(): void {
-    const t = TUNING;
-    const lane = Math.floor(Math.random() * t.bgLanes);
-    this.background.push({
-      mesh: this.makeCar(bgLaneX(lane), 18), // 從鏡頭後方開出來
-      speed: THREE.MathUtils.lerp(t.bgCarSpeedMin, t.bgCarSpeedMax, Math.random()),
-    });
+    const lane = Math.floor(Math.random() * TUNING.bgLanes);
+    // 從鏡頭後方開出來
+    this.background.push(this.makeCar(randomVehicleType(), bgLaneX(lane), 18));
   }
 
   hitsPlayer(player: Player): boolean {
     return this.oncoming.some((car) =>
-      aabbHit(player.mesh.position, player.size, car.mesh.position, TUNING.carSize),
+      aabbHit(player.mesh.position, player.size, car.mesh.position, car.size),
     );
   }
 
