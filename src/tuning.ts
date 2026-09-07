@@ -18,7 +18,7 @@ export const TUNING = {
   // ── 玩家移動 ──
   walkSpeed: 4.2, // 按住 ↑ 的前進速度（公尺/秒）
   backSpeed: 2.6, // 按住 ↓ 的後退速度
-  laneChangeDamp: 10, // 橫移的平滑度（越大移得越俐落）
+  strafeSpeed: 5.5, // 按住 ←→ 的橫移速度（連續滑動，不吸附車道中心）
 
   // ── 玩家型態（難度桿之一：體積越大越難閃。測試用 1/2/3 鍵切換）──
   playerForms: {
@@ -29,11 +29,13 @@ export const TUNING = {
 
   // ── 車種（難度桿之二：機車快、卡車大。weight = 出現比重，不用加總成 1）──
   vehicles: {
+    // wander = 生成時偏離車道中心的最大量（機車會鑽邊邊，卡車乖乖走正中間）
     scooter: {
       size: { x: 0.9, y: 1.3, z: 2.0 },
       speedMin: 8,
       speedMax: 16,
       weight: 0.35,
+      wander: 0.7,
       colors: [0x333338, 0xd94f8a, 0x4fa3d9, 0xf2f2f2],
     },
     car: {
@@ -41,6 +43,7 @@ export const TUNING = {
       speedMin: 6,
       speedMax: 13,
       weight: 0.5,
+      wander: 0.15,
       colors: [0xd94f4f, 0xe8e8e8, 0x4fd97a, 0xf2c14e, 0x9b59d0, 0x555560],
     },
     truck: {
@@ -48,6 +51,7 @@ export const TUNING = {
       speedMin: 5,
       speedMax: 9,
       weight: 0.15,
+      wander: 0,
       colors: [0x3d6b9e, 0x5e8f6a, 0x8a8a92, 0xc9a227],
     },
   },
@@ -88,11 +92,12 @@ export function randomVehicleType(): VehicleType {
 
 // ── 佈局換算（改上面的參數就好，下面不用動）──
 
-// 可玩直欄：0 = 人行道、1..roadLanes = 迎面車道。回傳該欄中心的 X 座標。
-export const COLS = TUNING.roadLanes + 1;
+// 直欄：0 = 人行道、1..roadLanes = 迎面車道。回傳該欄中心的 X 座標。
+// （玩家已改成連續橫移，這主要給車輛/路障生成用。）
 export function colX(col: number): number {
   return (col - 1) * TUNING.laneWidth;
 }
+
 
 // 迎面車道右緣（分隔島從這裡開始）
 export const ROAD_RIGHT = colX(TUNING.roadLanes) + TUNING.laneWidth / 2;
@@ -102,3 +107,6 @@ export const BG_LEFT = ROAD_RIGHT + TUNING.medianWidth;
 export function bgLaneX(i: number): number {
   return BG_LEFT + (i + 0.5) * TUNING.laneWidth;
 }
+// 玩家橫移範圍：人行道左緣 ～ 分隔島前
+export const WALK_MIN_X = colX(0) - TUNING.laneWidth / 2;
+export const WALK_MAX_X = ROAD_RIGHT;

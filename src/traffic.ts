@@ -90,8 +90,11 @@ export class Traffic {
     }
     if (candidates.length === 0) return; // 車道全被違停佔滿就這輪不生
     const col = candidates[Math.floor(Math.random() * candidates.length)];
+    const type = randomVehicleType();
+    // 依車種的 wander 在車道內隨機偏移（機車會鑽邊邊，留出可以側身閃的縫）
+    const offset = (Math.random() * 2 - 1) * TUNING.vehicles[type].wander;
     this.oncoming.push(
-      this.makeCar(randomVehicleType(), colX(col), -t.spawnDistance),
+      this.makeCar(type, colX(col) + offset, -t.spawnDistance),
     );
   }
 

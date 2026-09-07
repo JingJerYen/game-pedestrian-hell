@@ -34,11 +34,13 @@ const traffic = new Traffic(world.scene);
 const obstacles = new Obstacles(world.scene);
 const hud = new Hud();
 
-// 按住 ↑/W 前進、↓/S 後退（用 keydown/keyup 追蹤「現在按著哪些鍵」）
+// 按住 ↑↓←→（或 WASD）移動（用 keydown/keyup 追蹤「現在按著哪些鍵」）
 const held = new Set<string>();
 const KEY_ALIAS: Record<string, string> = {
   ArrowUp: "up", w: "up", W: "up",
   ArrowDown: "down", s: "down", S: "down",
+  ArrowLeft: "left", a: "left", A: "left",
+  ArrowRight: "right", d: "right", D: "right",
 };
 window.addEventListener("keydown", (e) => {
   const key = KEY_ALIAS[e.key];
@@ -98,7 +100,8 @@ renderer.setAnimationLoop(() => {
     world.update(dz);
     obstacles.update(dz, maxDistance);
     traffic.update(dt, dz, obstacles.occupiedRoadCols());
-    player.update(dt, obstacles);
+    const dirX = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
+    player.update(dt, dirX, obstacles);
 
     position += dz;
     maxDistance = Math.max(maxDistance, position);
