@@ -11,6 +11,7 @@ import { Traffic } from "./traffic";
 import { Obstacles } from "./obstacles";
 import { Intersections } from "./intersections";
 import { Destination } from "./destination";
+import { TouchControls } from "./touch";
 import { ROAD_LEFT, BG_RIGHT } from "./tuning";
 import { Hud } from "./hud";
 import { DebugOverlay } from "./debug";
@@ -112,8 +113,9 @@ function failLevel(title: string): void {
   );
 }
 
-window.addEventListener("keydown", () => {
-  // 結算畫面停留滿 resultHoldSeconds 才接受按鍵，避免玩家還在狂按方向鍵就跳過了
+// 結算畫面的「按任意鍵」：鍵盤和觸控（點螢幕）都走這裡
+function tryAdvance(): void {
+  // 停留滿 resultHoldSeconds 才接受，避免玩家還在狂按方向鍵就跳過了
   if (performance.now() - resultAt < TUNING.resultHoldSeconds * 1000) return;
   if (state === "fail") {
     if (hearts > 0) {
@@ -126,20 +128,37 @@ window.addEventListener("keydown", () => {
     hearts = TUNING.maxHearts;
     startLevel(0);
   }
-});
+}
+window.addEventListener("keydown", tryAdvance);
 
-// 鏡頭：馬力歐賽車式——在玩家後方偏低，橫移時稍微跟過去
+// 觸控裝置：虛擬搖桿寫入同一個 held 集合，並換掉操作提示文字
+new TouchControls(held, tryAdvance);
+if ("ontouchstart" in window) {
+  document.getElementById("hint")!.textContent = "按住畫面拖曳移動";
+}
+
+// 鏡頭：馬力歐賽車式——在玩家後方偏低，橫移時稍微跟過去。
+// 直式畫面（手機豎拿）自動改用 cameraPortrait 那組參數。
 let cameraX = 0;
 function updateCamera(dt: number): void {
   const t = TUNING;
+  const portrait = camera.aspect < 1;
+  const height = portrait ? t.cameraPortrait.height : t.cameraHeight;
+  const distance = portrait ? t.cameraPortrait.distance : t.cameraDistance;
+  const lookAhead = portrait ? t.cameraPortrait.lookAhead : t.cameraLookAhead;
+  const fov = portrait ? t.cameraPortrait.fov : t.cameraFov;
+  if (camera.fov !== fov) {
+    camera.fov = fov;
+    camera.updateProjectionMatrix();
+  }
   cameraX = THREE.MathUtils.damp(
     cameraX,
     player.mesh.position.x * t.cameraXFollow,
     t.cameraXDamp,
     dt,
   );
-  camera.position.set(cameraX, t.cameraHeight, t.cameraDistance);
-  camera.lookAt(cameraX, 0.8, -t.cameraLookAhead);
+  camera.position.set(cameraX, height, distance);
+  camera.lookAt(cameraX, 0.8, -lookAhead);
 }
 
 const clock = new THREE.Clock();

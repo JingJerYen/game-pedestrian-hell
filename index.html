@@ -2,7 +2,10 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <title>台灣行人 taiwan-ped</title>
     <style>
       html,
@@ -12,6 +15,9 @@
         overflow: hidden;
         background: #1a1a2e;
         font-family: system-ui, "Noto Sans TC", sans-serif;
+        touch-action: none; /* 擋掉手機的下拉重整、雙擊縮放等手勢 */
+        -webkit-user-select: none;
+        user-select: none;
       }
       canvas {
         display: block;
@@ -89,6 +95,29 @@
       #debug.show {
         display: block;
       }
+      /* 虛擬搖桿（touch.ts 控制顯示位置） */
+      #stick-base {
+        position: fixed;
+        display: none;
+        width: 110px;
+        height: 110px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.5);
+        background: rgba(255, 255, 255, 0.12);
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        z-index: 5;
+      }
+      #stick-knob {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.55);
+        transform: translate(-50%, -50%);
+      }
       #hint {
         position: fixed;
         bottom: 16px;
@@ -123,6 +152,7 @@
       <p id="win-prompt"></p>
     </div>
     <div id="debug"></div>
+    <div id="stick-base"><div id="stick-knob"></div></div>
     <div id="hint">↑ 前進　↓ 後退　← → 橫移</div>
     <script type="module" src="/src/main.ts"></script>
   </body>

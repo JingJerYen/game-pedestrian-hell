@@ -9,6 +9,15 @@ export const TUNING = {
   cameraXFollow: 0.6, // 橫移時鏡頭跟過去的比例（0=固定不動、1=完全跟隨）
   cameraXDamp: 4, // 鏡頭橫向跟隨的平滑度（越大跟越緊）
 
+  // ── 直式畫面（手機豎拿）鏡頭覆寫：畫面比例 < 1 時自動採用 ──
+  // 直式水平視野窄，鏡頭要拉高拉遠＋加大 FOV 才看得到兩側車道
+  cameraPortrait: {
+    height: 4.6,
+    distance: 8.0,
+    fov: 82,
+    lookAhead: 17,
+  },
+
   // ── 道路佈局：【左人行道】【迎面車道×roadLanes】【雙黃線】【對向車道×bgLanes】【右人行道】──
   laneWidth: 2.6, // 每條車道（與人行道走位）的寬
   roadLanes: 2, // 迎面車道數
