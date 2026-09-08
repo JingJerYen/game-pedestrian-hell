@@ -9,11 +9,11 @@ export const TUNING = {
   cameraXFollow: 0.6, // 橫移時鏡頭跟過去的比例（0=固定不動、1=完全跟隨）
   cameraXDamp: 4, // 鏡頭橫向跟隨的平滑度（越大跟越緊）
 
-  // ── 道路佈局：【人行道】【迎面車道×roadLanes】【分隔島】【對向車道×bgLanes】──
+  // ── 道路佈局：【左人行道】【迎面車道×roadLanes】【雙黃線】【對向車道×bgLanes】【右人行道】──
   laneWidth: 2.6, // 每條車道（與人行道走位）的寬
-  roadLanes: 2, // 迎面車道數（可玩區）
-  bgLanes: 2, // 對向車道數（純背景，被分隔島擋住）
-  medianWidth: 0.9, // 分隔島寬度
+  roadLanes: 2, // 迎面車道數
+  bgLanes: 2, // 對向車道數（可以走過去，但對向車從你背後來、會撞死你）
+  centerGap: 0.5, // 雙黃線區的寬度（原本的分隔島拆掉了）
 
   // ── 玩家移動 ──
   walkSpeed: 4.2, // 按住 ↑ 的前進速度（公尺/秒）
@@ -61,6 +61,9 @@ export const TUNING = {
   despawnZ: 15, // 車跑到玩家後方多遠就回收
   bgSpawnInterval: 1.6, // 對向（背景）車的生成間隔
 
+  // ── 裝飾 ──
+  slowMarkCount: 3, // 路面上同時存在幾個「慢」字（循環使用，出現位置隨機）
+
   // ── 命 ──
   maxHearts: 3, // 失敗扣一條，用完從第一關重來
 
@@ -69,7 +72,20 @@ export const TUNING = {
 
   // ── 靜止路障（擋路不致死；「多密、多常違停」由下面的關卡表決定）──
   sidewalkObstacleSize: { x: 2.2, y: 1.3, z: 2.8 }, // 人行道路障（機車堆、攤販…）
+  sidewalkLongObstacleSize: { x: 2.2, y: 1.1, z: 14 }, // 超長路障（之後鋪機車停車格皮）
+  sidewalkLongChance: 0.25, // 人行道路障是超長版的機率
   obstacleSpawnZ: 96, // 路障生成在前方多遠（比車生成點再遠一點，避免疊到車）
+
+  // ── 路口（永遠綠燈；唯一威脅是迎面車右轉掃過斑馬線）──
+  intersection: {
+    firstAt: 50, // 每關第一個路口在幾公尺處
+    everyMin: 70, // 之後每隔幾公尺一個路口（隨機取 min~max）
+    everyMax: 110,
+    roadDepth: 9, // 橫向小路的縱深（公尺）
+    spawnZ: 120, // 路口生成在前方多遠
+    turnChance: 0.35, // 靠人行道車道的迎面車在路口右轉的機率（卡車不轉）
+    turnSeconds: 0.9, // 轉彎轉 90 度花幾秒（越短轉越兇）
+  },
 
   // ── 碰撞 ──
   hitboxShrink: 0.75, // 碰撞箱是視覺大小的幾成（從寬判定：差點撞到 > 冤枉死）
@@ -94,11 +110,19 @@ export interface LevelConfig {
   walkSpeed?: number; // 前進速度（公尺/秒）
   backSpeed?: number; // 後退速度
   strafeSpeed?: number; // 橫移速度
+  // ↓ 可選：路口覆寫。沒寫就用 TUNING.intersection 的全域值。
+  intersectionEveryMin?: number; // 路口間距（公尺）
+  intersectionEveryMax?: number;
+  turnChance?: number; // 路邊車道的車在路口右轉的機率
+  // ↓ 可選：過關地點。指定後，走到 goalDistance 還要「站上該側人行道」才過關，
+  //   時間照跑。終點會出現一棟目的地建築（外觀在 skins.ts 的 makeDestinationBuilding）。
+  goalSide?: "left" | "right";
+  destinationLabel?: string; // 目的地建築的招牌字（之後換貼皮）
 }
 
 export const LEVELS: LevelConfig[] = [
   {
-    goalDistance: 20,
+    goalDistance: 200,
     timeLimit: 90,
     playerForm: "walker",
     spawnInterval: 1.3,
@@ -106,6 +130,8 @@ export const LEVELS: LevelConfig[] = [
     obstacleGapMin: 12,
     obstacleGapMax: 24,
     obstacleRoadChance: 0.2,
+    goalSide: "right",
+    destinationLabel: "公司",
   },
   {
     goalDistance: 30,
@@ -116,6 +142,8 @@ export const LEVELS: LevelConfig[] = [
     obstacleGapMin: 10,
     obstacleGapMax: 20,
     obstacleRoadChance: 0.3,
+    goalSide: "left",
+    destinationLabel: "托嬰中心",
   },
   {
     goalDistance: 35,
@@ -126,6 +154,8 @@ export const LEVELS: LevelConfig[] = [
     obstacleGapMin: 9,
     obstacleGapMax: 18,
     obstacleRoadChance: 0.35,
+    goalSide: "right",
+    destinationLabel: "醫院",
   },
 ];
 
@@ -145,21 +175,30 @@ export function randomVehicleType(): VehicleType {
 
 // ── 佈局換算（改上面的參數就好，下面不用動）──
 
-// 直欄：0 = 人行道、1..roadLanes = 迎面車道。回傳該欄中心的 X 座標。
-// （玩家已改成連續橫移，這主要給車輛/路障生成用。）
+// 迎面車道右緣（雙黃線從這裡開始）
+export const ROAD_RIGHT = (TUNING.roadLanes - 0.5) * TUNING.laneWidth;
+// 對向車道左緣／右緣
+export const BG_LEFT = ROAD_RIGHT + TUNING.centerGap;
+export const BG_RIGHT = BG_LEFT + TUNING.bgLanes * TUNING.laneWidth;
+// 右人行道的走位中心
+export const RIGHT_SIDEWALK_X = BG_RIGHT + TUNING.laneWidth / 2;
+
+// 直欄編號：0=左人行道、1..roadLanes=迎面車道、
+// roadLanes+1..LAST_ROAD_COL=對向車道、RIGHT_SIDEWALK_COL=右人行道
+export const LAST_ROAD_COL = TUNING.roadLanes + TUNING.bgLanes;
+export const RIGHT_SIDEWALK_COL = LAST_ROAD_COL + 1;
 export function colX(col: number): number {
-  return (col - 1) * TUNING.laneWidth;
+  if (col <= TUNING.roadLanes) return (col - 1) * TUNING.laneWidth; // 含左人行道(0)
+  if (col <= LAST_ROAD_COL)
+    return BG_LEFT + (col - TUNING.roadLanes - 0.5) * TUNING.laneWidth;
+  return RIGHT_SIDEWALK_X;
 }
 
-
-// 迎面車道右緣（分隔島從這裡開始）
-export const ROAD_RIGHT = colX(TUNING.roadLanes) + TUNING.laneWidth / 2;
-// 對向車道左緣
-export const BG_LEFT = ROAD_RIGHT + TUNING.medianWidth;
-// 對向車道 i（0 起算）的中心 X
-export function bgLaneX(i: number): number {
-  return BG_LEFT + (i + 0.5) * TUNING.laneWidth;
-}
-// 玩家橫移範圍：人行道左緣 ～ 分隔島前
+// 玩家橫移範圍：左人行道左緣 ～ 右人行道右緣
 export const WALK_MIN_X = colX(0) - TUNING.laneWidth / 2;
-export const WALK_MAX_X = ROAD_RIGHT;
+export const WALK_MAX_X = RIGHT_SIDEWALK_X + TUNING.laneWidth / 2;
+
+// 人行道的視覺寬度（world.ts 與目的地建築的定位共用）
+export const SIDEWALK_WIDTH = TUNING.laneWidth + 0.8;
+// 迎面車道左緣（左人行道右緣）
+export const ROAD_LEFT = -TUNING.laneWidth / 2;

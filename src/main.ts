@@ -9,10 +9,14 @@ import { World } from "./world";
 import { Player } from "./player";
 import { Traffic } from "./traffic";
 import { Obstacles } from "./obstacles";
+import { Intersections } from "./intersections";
+import { Destination } from "./destination";
+import { ROAD_LEFT, BG_RIGHT } from "./tuning";
 import { Hud } from "./hud";
 import { DebugOverlay } from "./debug";
 
 const FORM_LABEL = { walker: "步行", stroller: "推嬰兒車", wheelchair: "坐輪椅" } as const;
+const SIDE_LABEL = { left: "左側", right: "右側" } as const;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -36,6 +40,8 @@ const world = new World();
 const player = new Player(world.scene);
 const traffic = new Traffic(world.scene);
 const obstacles = new Obstacles(world.scene);
+const intersections = new Intersections(world.scene);
+const destination = new Destination(world.scene);
 const hud = new Hud();
 const debug = new DebugOverlay();
 
@@ -80,10 +86,15 @@ function startLevel(index: number): void {
   player.reset();
   traffic.reset();
   obstacles.reset();
+  intersections.reset();
+  destination.reset();
   hud.hideOverlays();
+  const goalText = lv.goalSide
+    ? `走到 ${lv.goalDistance}m 的${SIDE_LABEL[lv.goalSide]}人行道`
+    : `走到 ${lv.goalDistance}m`;
   hud.showBanner(
     `第 ${index + 1} 關`,
-    `${FORM_LABEL[lv.playerForm]}｜走到 ${lv.goalDistance}m｜時限 ${lv.timeLimit} 秒`,
+    `${FORM_LABEL[lv.playerForm]}｜${goalText}｜時限 ${lv.timeLimit} 秒`,
   );
   bannerTimer = 2.0;
   state = "levelStart";
@@ -152,9 +163,13 @@ renderer.setAnimationLoop(() => {
     dz = Math.max(dz, -position); // 不能退到起點之前
     dz = obstacles.clampScroll(player.mesh.position, player.size, dz); // 被路障擋住
 
-    world.update(dz);
-    obstacles.update(dz, maxDistance, lv);
-    traffic.update(dt, dz, obstacles.occupiedRoadCols(), lv);
+    intersections.update(dz, maxDistance, lv, (z) =>
+      obstacles.removeNear(z, TUNING.intersection.roadDepth / 2 + 2),
+    );
+    destination.update(dz, position, lv);
+    world.update(dz, intersections.centers(), destination.zone);
+    obstacles.update(dz, maxDistance, lv, intersections);
+    traffic.update(dt, dz, obstacles, lv, intersections);
     const dirX = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
     player.update(dt, dirX, lv.strafeSpeed ?? TUNING.strafeSpeed, obstacles);
 
@@ -162,7 +177,13 @@ renderer.setAnimationLoop(() => {
     maxDistance = Math.max(maxDistance, position);
     timeLeft -= dt;
 
-    if (maxDistance >= lv.goalDistance) {
+    // 過關判定：走到目標距離；關卡有指定 goalSide 的話，還要站上該側人行道
+    const reached = position >= lv.goalDistance;
+    const px = player.mesh.position.x;
+    const sideOk =
+      !lv.goalSide ||
+      (lv.goalSide === "left" ? px < ROAD_LEFT : px > BG_RIGHT);
+    if (reached && sideOk) {
       // 過關：還有下一關就進下一關，沒有就通關
       if (levelIndex + 1 < LEVELS.length) startLevel(levelIndex + 1);
       else {
@@ -177,13 +198,17 @@ renderer.setAnimationLoop(() => {
     }
   }
 
+  const sideLabel = lv.goalSide ? SIDE_LABEL[lv.goalSide] : "";
+  const progressText =
+    lv.goalSide && position >= lv.goalDistance
+      ? `到了！請走到${sideLabel}人行道`
+      : `${Math.floor(position)} / ${lv.goalDistance} m${lv.goalSide ? `（終點在${sideLabel}）` : ""}`;
   hud.setStatus(
     hearts,
     TUNING.maxHearts,
     levelIndex,
     LEVELS.length,
-    maxDistance,
-    lv.goalDistance,
+    progressText,
     timeLeft,
   );
   debug.update(dt, () => {
@@ -194,7 +219,7 @@ renderer.setAnimationLoop(() => {
       `pos ${position.toFixed(1)} / max ${maxDistance.toFixed(1)} / goal ${lv.goalDistance}`,
       `time ${timeLeft.toFixed(1)}s`,
       `spawnInterval ${lv.spawnInterval}s  speedScale ${lv.speedScale}`,
-      `cars ${c.oncoming}  bg ${c.background}  obstacles ${obstacles.count}`,
+      `cars ${c.total} (turning ${c.turning})  obstacles ${obstacles.count}  intersections ${intersections.count}`,
     ].join("\n");
   });
 

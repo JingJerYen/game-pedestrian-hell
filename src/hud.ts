@@ -27,14 +27,13 @@ export class Hud {
     maxHearts: number,
     levelIndex: number,
     levelCount: number,
-    dist: number,
-    goal: number,
+    progressText: string,
     timeLeft: number,
   ): void {
     this.hearts.textContent =
       "❤ ".repeat(hearts) + "🖤 ".repeat(maxHearts - hearts);
     this.level.textContent = `第 ${levelIndex + 1} / ${levelCount} 關`;
-    this.progress.textContent = `${Math.floor(dist)} / ${goal} m`;
+    this.progress.textContent = progressText;
     this.timer.textContent = `⏱ ${Math.max(timeLeft, 0).toFixed(1)}`;
     this.timer.classList.toggle("low", timeLeft < 10);
   }

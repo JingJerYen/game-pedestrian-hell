@@ -23,8 +23,11 @@
 | `src/tuning.ts` | 全部可調參數 |
 | `src/world.ts` | 場景、光、路面、車道線捲動 |
 | `src/player.ts` | 玩家、鍵盤輸入、換道平滑移動 |
-| `src/traffic.ts` | 車輛生成與回收（迎面＝威脅、對向＝背景） |
+| `src/traffic.ts` | 車輛生成/移動/右轉/回收（迎面＋同向都會撞死人） |
 | `src/obstacles.ts` | 靜止路障：擋前進、擋橫移、不致死 |
+| `src/intersections.ts` | 路口：橫向小路、斑馬線、紅綠燈；右轉邏輯在 traffic |
+| `src/destination.ts` | 每關終點的目的地建築（goalSide 判定在 main） |
+| `src/skins.ts` | 世界裝飾的外觀 factory 集中處——換素材改這裡 |
 | `src/collision.ts` | AABB 判定 |
 | `src/hud.ts` | HUD 狀態列與橫幅/失敗/通關畫面（DOM overlay，版面在 index.html） |
 | `src/debug.ts` | 開發用 overlay（` 鍵開關），玩家不知道也不影響遊戲 |
