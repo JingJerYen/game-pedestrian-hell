@@ -57,15 +57,17 @@ export const TUNING = {
   },
 
   // ── 車流 ──
-  spawnInterval: 1.0, // 每隔幾秒生成一台迎面車
   spawnDistance: 90, // 車在玩家前方多遠生成
   despawnZ: 15, // 車跑到玩家後方多遠就回收
   bgSpawnInterval: 1.6, // 對向（背景）車的生成間隔
 
-  // ── 靜止路障（擋路不致死）──
-  obstacleGapMin: 9, // 兩個路障至少隔幾公尺（保證永遠有路可繞）
-  obstacleGapMax: 22,
-  obstacleRoadChance: 0.3, // 路障出現在路邊車道（而非人行道）的機率
+  // ── 命 ──
+  maxHearts: 3, // 失敗扣一條，用完從第一關重來
+
+  // ── 結算畫面 ──
+  resultHoldSeconds: 2.5, // 失敗/通關畫面至少停留幾秒才接受按鍵（期間不顯示「按任意鍵」）
+
+  // ── 靜止路障（擋路不致死；「多密、多常違停」由下面的關卡表決定）──
   sidewalkObstacleSize: { x: 2.2, y: 1.3, z: 2.8 }, // 人行道路障（機車堆、攤販…）
   obstacleSpawnZ: 96, // 路障生成在前方多遠（比車生成點再遠一點，避免疊到車）
 
@@ -75,6 +77,57 @@ export const TUNING = {
 
 export type PlayerForm = keyof typeof TUNING.playerForms;
 export type VehicleType = keyof typeof TUNING.vehicles;
+
+// ── 關卡表（後台調整用，玩家看不到）──
+// 加關卡 = 加一個物件；順序就是關卡順序。
+export interface LevelConfig {
+  goalDistance: number; // 走到這個距離（公尺）就過關
+  timeLimit: number; // 時限（秒），沒走到就失敗、重來本關
+  playerForm: PlayerForm; // 這一關的行人型態（walker / stroller / wheelchair）
+  spawnInterval: number; // 迎面車生成間隔（秒），越小車越密
+  speedScale: number; // 全部迎面車速乘上這個倍率
+  obstacleGapMin: number; // 路障最小間距（公尺），越小路障越密
+  obstacleGapMax: number;
+  obstacleRoadChance: number; // 路障長在路邊車道（違停）而非人行道的機率
+  // ↓ 可選：行人速度覆寫。沒寫就用上面 TUNING 的全域值。
+  //   例：輪椅關想更慢就加 walkSpeed: 3.2（推薦連 strafeSpeed 一起調，比例才對）
+  walkSpeed?: number; // 前進速度（公尺/秒）
+  backSpeed?: number; // 後退速度
+  strafeSpeed?: number; // 橫移速度
+}
+
+export const LEVELS: LevelConfig[] = [
+  {
+    goalDistance: 20,
+    timeLimit: 90,
+    playerForm: "walker",
+    spawnInterval: 1.3,
+    speedScale: 1.0,
+    obstacleGapMin: 12,
+    obstacleGapMax: 24,
+    obstacleRoadChance: 0.2,
+  },
+  {
+    goalDistance: 30,
+    timeLimit: 30,
+    playerForm: "stroller",
+    spawnInterval: 1.0,
+    speedScale: 1.1,
+    obstacleGapMin: 10,
+    obstacleGapMax: 20,
+    obstacleRoadChance: 0.3,
+  },
+  {
+    goalDistance: 35,
+    timeLimit: 40,
+    playerForm: "wheelchair",
+    spawnInterval: 0.8,
+    speedScale: 1.2,
+    obstacleGapMin: 9,
+    obstacleGapMax: 18,
+    obstacleRoadChance: 0.35,
+  },
+];
 
 // 依 weight 比重隨機抽一種車
 export function randomVehicleType(): VehicleType {

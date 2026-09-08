@@ -26,7 +26,8 @@
 | `src/traffic.ts` | 車輛生成與回收（迎面＝威脅、對向＝背景） |
 | `src/obstacles.ts` | 靜止路障：擋前進、擋橫移、不致死 |
 | `src/collision.ts` | AABB 判定 |
-| `src/hud.ts` | 分數、死亡畫面（DOM overlay） |
+| `src/hud.ts` | HUD 狀態列與橫幅/失敗/通關畫面（DOM overlay，版面在 index.html） |
+| `src/debug.ts` | 開發用 overlay（` 鍵開關），玩家不知道也不影響遊戲 |
 
 ## 與使用者合作方式
 

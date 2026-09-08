@@ -2,7 +2,7 @@
 // 碰到不會死，只是「擋住」——擋前進（clampScroll）也擋橫移（blocksAt）。
 
 import * as THREE from "three";
-import { TUNING, colX } from "./tuning";
+import { TUNING, colX, type LevelConfig } from "./tuning";
 import { aabbHit, type Size3 } from "./collision";
 
 interface Obstacle {
@@ -20,8 +20,9 @@ export class Obstacles {
 
   constructor(private readonly scene: THREE.Scene) {}
 
-  // dz = 這一幀世界捲了多少；maxDist = 目前最遠走到幾公尺（用它排程生成）
-  update(dz: number, maxDist: number): void {
+  // dz = 這一幀世界捲了多少；maxDist = 本關最遠走到幾公尺（用它排程生成）；
+  // 密度與違停機率吃目前關卡設定
+  update(dz: number, maxDist: number, level: LevelConfig): void {
     for (let i = this.list.length - 1; i >= 0; i--) {
       const o = this.list[i];
       o.mesh.position.z += dz;
@@ -31,16 +32,16 @@ export class Obstacles {
       }
     }
     if (maxDist >= this.nextSpawnAt) {
-      this.spawn();
+      this.spawn(level);
       this.nextSpawnAt =
         maxDist +
-        THREE.MathUtils.lerp(TUNING.obstacleGapMin, TUNING.obstacleGapMax, Math.random());
+        THREE.MathUtils.lerp(level.obstacleGapMin, level.obstacleGapMax, Math.random());
     }
   }
 
-  private spawn(): void {
+  private spawn(level: LevelConfig): void {
     const t = TUNING;
-    const onRoad = Math.random() < t.obstacleRoadChance;
+    const onRoad = Math.random() < level.obstacleRoadChance;
     const col = onRoad ? 1 : 0; // 車道路障只出現在最靠人行道的路邊車道
     const size = onRoad ? t.vehicles.car.size : t.sidewalkObstacleSize; // 違停以汽車為準
     const colors = onRoad ? PARKED_CAR_COLORS : SIDEWALK_COLORS;
@@ -79,6 +80,11 @@ export class Obstacles {
     const cols = new Set<number>();
     for (const o of this.list) if (o.col >= 1) cols.add(o.col);
     return cols;
+  }
+
+  // debug overlay 用
+  get count(): number {
+    return this.list.length;
   }
 
   reset(): void {

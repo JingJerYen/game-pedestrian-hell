@@ -38,12 +38,12 @@ export class Player {
     this.mesh.position.y = size.y / 2;
   }
 
-  // dirX：-1 往左、+1 往右、0 不動（由 main.ts 從按鍵算出）
-  update(dt: number, dirX: number, obstacles: Obstacles): void {
+  // dirX：-1 往左、+1 往右、0 不動；strafeSpeed 由 main.ts 依關卡設定傳入
+  update(dt: number, dirX: number, strafeSpeed: number, obstacles: Obstacles): void {
     if (dirX === 0) return;
     const oldX = this.mesh.position.x;
     this.mesh.position.x = THREE.MathUtils.clamp(
-      oldX + dirX * TUNING.strafeSpeed * dt,
+      oldX + dirX * strafeSpeed * dt,
       WALK_MIN_X + this.size.x / 2,
       WALK_MAX_X - this.size.x / 2,
     );

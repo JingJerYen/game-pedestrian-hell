@@ -21,13 +21,25 @@
         top: 16px;
         left: 16px;
         color: #fff;
-        font-size: 28px;
         font-weight: 700;
         text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
         user-select: none;
         pointer-events: none;
       }
-      #death {
+      #hearts {
+        color: #ff5a6a;
+        font-size: 28px;
+        letter-spacing: 5px;
+      }
+      #hud .row {
+        font-size: 22px;
+        margin-top: 4px;
+      }
+      #timer.low {
+        color: #ff8080;
+      }
+      /* 全螢幕覆蓋畫面共用樣式（橫幅／失敗／通關） */
+      .overlay {
         position: fixed;
         inset: 0;
         display: none;
@@ -35,22 +47,47 @@
         align-items: center;
         justify-content: center;
         gap: 12px;
-        background: rgba(120, 0, 0, 0.45);
         color: #fff;
         text-align: center;
         user-select: none;
       }
-      #death.show {
+      .overlay.show {
         display: flex;
       }
-      #death h1 {
-        font-size: 56px;
+      .overlay h1 {
+        font-size: 52px;
         margin: 0;
         text-shadow: 0 3px 6px rgba(0, 0, 0, 0.7);
       }
-      #death p {
-        font-size: 24px;
+      .overlay p {
+        font-size: 22px;
         margin: 0;
+      }
+      #banner {
+        background: rgba(0, 0, 0, 0.4);
+      }
+      /* 失敗畫面：之後要換素材／改版面就改這一塊（文字由 hud.ts 的 showFail 塞入） */
+      #fail {
+        background: rgba(120, 0, 0, 0.45);
+      }
+      /* 通關畫面：細節未定，先佔位 */
+      #win {
+        background: rgba(0, 90, 45, 0.5);
+      }
+      #debug {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        display: none;
+        white-space: pre;
+        font: 13px/1.6 ui-monospace, monospace;
+        color: #9f9;
+        background: rgba(0, 0, 0, 0.55);
+        padding: 8px 12px;
+        border-radius: 6px;
+      }
+      #debug.show {
+        display: block;
       }
       #hint {
         position: fixed;
@@ -65,13 +102,28 @@
     </style>
   </head>
   <body>
-    <div id="hud">0 m</div>
-    <div id="death">
-      <h1>你被撞了 🛵</h1>
-      <p id="death-score"></p>
-      <p>按任意鍵再走一次</p>
+    <div id="hud">
+      <div id="hearts">❤ ❤ ❤</div>
+      <div class="row" id="level"></div>
+      <div class="row" id="progress"></div>
+      <div class="row" id="timer"></div>
     </div>
-    <div id="hint">↑ 前進　↓ 後退　← → 橫移（人行道 ↔ 馬路）</div>
+    <div id="banner" class="overlay">
+      <h1 id="banner-title"></h1>
+      <p id="banner-sub"></p>
+    </div>
+    <div id="fail" class="overlay">
+      <h1 id="fail-title"></h1>
+      <p id="fail-sub"></p>
+      <p id="fail-prompt"></p>
+    </div>
+    <div id="win" class="overlay">
+      <h1>🎉 恭喜通關！</h1>
+      <p>你在行人地獄活了下來</p>
+      <p id="win-prompt"></p>
+    </div>
+    <div id="debug"></div>
+    <div id="hint">↑ 前進　↓ 後退　← → 橫移</div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
