@@ -62,9 +62,14 @@ export class Intersections {
     sideRoad.position.set((WALK_MIN_X + WALK_MAX_X) / 2, 0.1, 0);
     group.add(sideRoad);
 
-    // 裝飾用：橫越整條主路（含雙黃線）的斑馬線
+    // 橫越主路的斑馬線：路口近側、遠側各一條，
+    // 和左右兩條縱向的合起來是台灣路口常見的「口」字型
     const roadLeft = colX(1) - TUNING.laneWidth / 2;
-    group.add(makeZebraAcross(roadLeft, BG_RIGHT));
+    for (const zOffset of [-(depth / 2 - 1.6), depth / 2 - 1.6]) {
+      const zebra = makeZebraAcross(roadLeft, BG_RIGHT);
+      zebra.position.z = zOffset;
+      group.add(zebra);
+    }
 
     // 行人直行的斑馬線（左右人行道的延伸段，右轉車就是掃這裡）
     for (const x of [colX(0), colX(RIGHT_SIDEWALK_COL)]) {

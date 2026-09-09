@@ -8,6 +8,7 @@ import {
   TUNING,
   colX,
   LAST_ROAD_COL,
+  RIGHT_SIDEWALK_COL,
   WALK_MIN_X,
   WALK_MAX_X,
   randomVehicleType,
@@ -28,15 +29,22 @@ interface Car {
   mode: "straight" | "turning" | "done"; // done = 轉完 90 度、橫向駛離
   theta: number; // 已轉的角度（0 ~ π/2）
   baseX: number; // 自己車道的位置（含 wander）
-  avoid: number; // 繞開違停的橫向偏移（同向車用）
+  avoid: number; // 繞開路障的橫向偏移
+  sidewalkBike: boolean; // 人行道腳踏車（不轉彎、繞路障時往馬路那側閃）
 }
 
 export class Traffic {
   private readonly cars: Car[] = [];
   private spawnTimer = 0;
   private bgSpawnTimer = 0;
+  private bikeTimer = 0;
   // 每種車共用一份幾何，生成時只換材質顏色
   private readonly geometries = new Map<VehicleType, THREE.BoxGeometry>();
+  private readonly bikeGeometry = new THREE.BoxGeometry(
+    TUNING.bike.size.x,
+    TUNING.bike.size.y,
+    TUNING.bike.size.z,
+  );
 
   constructor(private readonly scene: THREE.Scene) {
     for (const [type, v] of Object.entries(TUNING.vehicles)) {
@@ -68,6 +76,14 @@ export class Traffic {
       this.bgSpawnTimer = t.bgSpawnInterval;
       this.spawn(-1, blockedCols, level);
     }
+    // 人行道腳踏車（關卡有設 bikeInterval 才有）
+    if (level.bikeInterval) {
+      this.bikeTimer -= dt;
+      if (this.bikeTimer <= 0) {
+        this.bikeTimer = level.bikeInterval;
+        this.spawnBike(level);
+      }
+    }
 
     const centers = intersections.centers();
     const turnStep = (Math.PI / 2) * (dt / t.intersection.turnSeconds);
@@ -79,10 +95,18 @@ export class Traffic {
 
       if (car.mode === "straight") {
         p.z += car.dir * car.speed * dt;
-        // 同向車會追上右側的違停車：前方有就往內側車道繞，過了再回來
-        if (car.dir === -1) {
-          const want = obstacles.hasObstacleAhead(car.baseX, p.z, 16)
-            ? -TUNING.laneWidth
+        // 避讓路障：同向車追上違停就往內側（-X）繞；
+        // 人行道腳踏車遇到路障就往馬路那側繞（跟行人一樣被逼下馬路）
+        const avoidDir = car.sidewalkBike
+          ? car.baseX < 0
+            ? 1
+            : -1
+          : car.dir === -1
+            ? -1
+            : 0;
+        if (avoidDir !== 0) {
+          const want = obstacles.hasObstacleAhead(car.baseX, p.z, 16, car.dir)
+            ? avoidDir * TUNING.laneWidth * (car.sidewalkBike ? 0.9 : 1)
             : 0;
           car.avoid = THREE.MathUtils.damp(car.avoid, want, 3, dt);
           p.x = car.baseX + car.avoid;
@@ -105,8 +129,11 @@ export class Traffic {
         p.x += -car.dir * car.speed * dt; // 轉完，橫向駛離
       }
 
+      // 往 -Z 開的（同向車/腳踏車）從 z=18 生成，回收線要放更後面，
+      // 不然速度比玩家慢的會一生成就被收掉
+      const backLimit = car.dir === 1 ? t.despawnZ + car.size.z : 24;
       const gone =
-        p.z > t.despawnZ + car.size.z ||
+        p.z > backLimit ||
         p.z < -(t.spawnDistance + 40) ||
         p.x < WALK_MIN_X - 10 ||
         p.x > WALK_MAX_X + 10;
@@ -154,9 +181,14 @@ export class Traffic {
     mesh.position.set(baseX, v.size.y / 2, z);
     if (dir === -1) mesh.rotation.y = Math.PI;
     this.scene.add(mesh);
+    // 左（迎面）右（同向）車速可分開調，沒個別設定就用 speedScale
+    const scale =
+      dir === 1
+        ? (level.speedScaleLeft ?? level.speedScale)
+        : (level.speedScaleRight ?? level.speedScale);
     this.cars.push({
       mesh,
-      speed: THREE.MathUtils.lerp(v.speedMin, v.speedMax, Math.random()) * level.speedScale,
+      speed: THREE.MathUtils.lerp(v.speedMin, v.speedMax, Math.random()) * scale,
       size: v.size,
       dir,
       turner,
@@ -164,6 +196,37 @@ export class Traffic {
       theta: 0,
       baseX,
       avoid: 0,
+      sidewalkBike: false,
+    });
+  }
+
+  // 人行道腳踏車：慢、會蛇行、撞到照樣死。方向依關卡設定（迎面/背後/雙向）
+  private spawnBike(level: LevelConfig): void {
+    const b = TUNING.bike;
+    const dirs = level.bikeDirs ?? "both";
+    const dir: 1 | -1 =
+      dirs === "toward" ? 1 : dirs === "away" ? -1 : Math.random() < 0.5 ? 1 : -1;
+    const col = Math.random() < 0.5 ? 0 : RIGHT_SIDEWALK_COL; // 左右人行道隨機
+    const baseX = colX(col) + (Math.random() * 2 - 1) * b.wander;
+    const color = b.colors[Math.floor(Math.random() * b.colors.length)];
+    const mesh = new THREE.Mesh(
+      this.bikeGeometry,
+      new THREE.MeshLambertMaterial({ color }),
+    );
+    mesh.position.set(baseX, b.size.y / 2, dir === 1 ? -TUNING.spawnDistance : 18);
+    if (dir === -1) mesh.rotation.y = Math.PI;
+    this.scene.add(mesh);
+    this.cars.push({
+      mesh,
+      speed: THREE.MathUtils.lerp(b.speedMin, b.speedMax, Math.random()),
+      size: b.size,
+      dir,
+      turner: false,
+      mode: "straight",
+      theta: 0,
+      baseX,
+      avoid: 0,
+      sidewalkBike: true,
     });
   }
 
@@ -196,5 +259,6 @@ export class Traffic {
     this.cars.length = 0;
     this.spawnTimer = 1.5; // 開場給一口氣的時間
     this.bgSpawnTimer = 0.5;
+    this.bikeTimer = 2;
   }
 }

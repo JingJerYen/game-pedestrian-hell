@@ -34,31 +34,43 @@ export function makeZebraForward(centerX: number, depth: number): THREE.Group {
   return group;
 }
 
-// ── 車道上的「慢」字 ──
+// ── 車道路面標記（「慢」、速限「50」…）──
 // placeholder 用 canvas 畫字；之後換素材就把 map 換成 TextureLoader 載入的 PNG。
-function makeSlowTexture(): THREE.Texture {
+// 成對出現、字向哪邊由 world.ts 控制，這裡只管長相。
+function makeMarkTexture(label: string): THREE.Texture {
   const canvas = document.createElement("canvas");
   canvas.width = 128;
   canvas.height = 256;
   const ctx = canvas.getContext("2d")!;
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 110px sans-serif";
+  ctx.font = "bold 100px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.translate(64, 128);
   ctx.scale(1, 1.9); // 路面標字都是拉長的，從低視角看才是正的
-  ctx.fillText("慢", 0, 0);
+  ctx.fillText(label, 0, 0, 116); // maxWidth：兩位數的「50」也塞得下
   return new THREE.CanvasTexture(canvas);
 }
-const SLOW_GEO = new THREE.PlaneGeometry(1.7, 3.4);
-const SLOW_MAT = new THREE.MeshBasicMaterial({
-  map: makeSlowTexture(),
-  transparent: true,
-  opacity: 0.85,
-});
 
-export function makeSlowMark(): THREE.Mesh {
-  const mark = new THREE.Mesh(SLOW_GEO, SLOW_MAT);
+const MARK_GEO = new THREE.PlaneGeometry(1.7, 3.4);
+const markMaterials = new Map<string, THREE.MeshBasicMaterial>();
+
+// 同一種字共用一份材質（world 換字時直接換材質）
+export function roadMarkMaterial(label: string): THREE.MeshBasicMaterial {
+  let mat = markMaterials.get(label);
+  if (!mat) {
+    mat = new THREE.MeshBasicMaterial({
+      map: makeMarkTexture(label),
+      transparent: true,
+      opacity: 0.85,
+    });
+    markMaterials.set(label, mat);
+  }
+  return mat;
+}
+
+export function makeRoadMark(label: string): THREE.Mesh {
+  const mark = new THREE.Mesh(MARK_GEO, roadMarkMaterial(label));
   mark.rotation.x = -Math.PI / 2;
   mark.position.y = 0.015;
   return mark;

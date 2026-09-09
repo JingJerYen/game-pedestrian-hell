@@ -3,8 +3,8 @@
 // 核心原則：玩家不動；main.ts 每幀給一個 dz（世界捲動量），這裡的東西照著捲。
 
 import * as THREE from "three";
-import { TUNING, colX, ROAD_RIGHT, BG_LEFT, BG_RIGHT, LAST_ROAD_COL } from "./tuning";
-import { makeBuilding, makeSlowMark } from "./skins";
+import { TUNING, colX, ROAD_RIGHT, BG_LEFT, BG_RIGHT } from "./tuning";
+import { makeBuilding, makeRoadMark, roadMarkMaterial } from "./skins";
 
 const ROAD_LENGTH = 220; // 路面長度（夠長到看不見盡頭就好）
 const DASH_SPACING = 6; // 車道虛線間距
@@ -15,7 +15,7 @@ export class World {
   readonly scene = new THREE.Scene();
   private readonly scrolling: THREE.Mesh[] = []; // 會捲動循環的東西（車道虛線）
   private readonly buildings: THREE.Mesh[] = []; // 建築另外管理：進路口範圍要隱藏
-  private readonly slowMarks: THREE.Mesh[] = []; // 「慢」字：循環時換隨機車道
+  private readonly markGroups: THREE.Group[] = []; // 路面標記（慢/50）：一組=一側車道各一字
 
   constructor() {
     const t = TUNING;
@@ -98,18 +98,41 @@ export class World {
       }
     }
 
-    // 路面「慢」字（裝飾）：幾個循環使用，繞回遠處時換一條隨機車道
-    for (let i = 0; i < t.slowMarkCount; i++) {
-      const mark = makeSlowMark();
-      mark.position.x = this.randomLaneX();
-      mark.position.z = WRAP_Z - Math.random() * ROAD_LENGTH;
-      this.scene.add(mark);
-      this.slowMarks.push(mark);
+    // 路面標記（慢/速限50，裝飾）：成對出現在同一側的每條車道、同一個 z，
+    // 字向跟著該側車行方向。循環使用，繞回遠處時重抽側別和字。
+    for (let i = 0; i < t.roadMarkPairs; i++) {
+      const group = new THREE.Group();
+      for (let j = 0; j < Math.max(t.roadLanes, t.bgLanes); j++) {
+        group.add(makeRoadMark(t.roadMarkLabels[0]));
+      }
+      this.assignMarkGroup(group);
+      group.position.z = WRAP_Z - Math.random() * ROAD_LENGTH;
+      this.scene.add(group);
+      this.markGroups.push(group);
     }
   }
 
-  private randomLaneX(): number {
-    return colX(1 + Math.floor(Math.random() * LAST_ROAD_COL));
+  // 重抽一組路面標記：隨機側別（左=迎面/右=同向）、隨機字（慢/50）
+  private assignMarkGroup(group: THREE.Group): void {
+    const t = TUNING;
+    const labels = t.roadMarkLabels;
+    const material = roadMarkMaterial(labels[Math.floor(Math.random() * labels.length)]);
+    const left = Math.random() < 0.5;
+    const laneCount = left ? t.roadLanes : t.bgLanes;
+    const firstCol = left ? 1 : t.roadLanes + 1;
+    group.children.forEach((child, i) => {
+      const mark = child as THREE.Mesh;
+      if (i >= laneCount) {
+        mark.visible = false;
+        return;
+      }
+      mark.visible = true;
+      mark.material = material;
+      mark.position.x = colX(firstCol + i);
+      // 字向跟車行方向：迎面車朝 +Z 開，字的上緣也朝 +Z——
+      // 所以玩家看迎面側的字是顛倒的，這才是現實中的樣子
+      mark.rotation.z = left ? Math.PI : 0;
+    });
   }
 
   // 每一幀把會捲動的東西推 dz；捲過頭就繞回另一端（前進後退都要能繞）。
@@ -149,9 +172,18 @@ export class World {
       building.visible =
         !nearZone(building.position.z, 5) && !yieldToDestination; // 建築縱深 8 的一半 + 緩衝
     }
-    for (const mark of this.slowMarks) {
-      if (wrap(mark)) mark.position.x = this.randomLaneX();
-      mark.visible = !nearZone(mark.position.z, 2.5);
+    for (const group of this.markGroups) {
+      group.position.z += dz;
+      let wrapped = false;
+      if (group.position.z > WRAP_Z) {
+        group.position.z -= ROAD_LENGTH;
+        wrapped = true;
+      } else if (group.position.z < WRAP_Z - ROAD_LENGTH) {
+        group.position.z += ROAD_LENGTH;
+        wrapped = true;
+      }
+      if (wrapped) this.assignMarkGroup(group);
+      group.visible = !nearZone(group.position.z, 2.5);
     }
   }
 }

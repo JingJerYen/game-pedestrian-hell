@@ -70,8 +70,18 @@ export const TUNING = {
   despawnZ: 15, // 車跑到玩家後方多遠就回收
   bgSpawnInterval: 1.6, // 對向（背景）車的生成間隔
 
-  // ── 裝飾 ──
-  slowMarkCount: 3, // 路面上同時存在幾個「慢」字（循環使用，出現位置隨機）
+  // ── 人行道腳踏車（慢速但撞到也是死；出現頻率/方向由關卡表 bike* 欄位控制）──
+  bike: {
+    size: { x: 0.6, y: 1.5, z: 1.8 },
+    speedMin: 2.5, // 比行人快一點點的悠哉速度
+    speedMax: 4.5,
+    wander: 0.8, // 在人行道上偏來偏去的幅度
+    colors: [0x2e7d5b, 0x8a4baf, 0xc2564b, 0x4a6fa5],
+  },
+
+  // ── 路面標記（「慢」「50」：成對出現在同一側兩條車道、字向跟著車行方向）──
+  roadMarkPairs: 2, // 同時存在幾組（一組 = 一側的每條車道各一個字）
+  roadMarkLabels: ["慢", "50"], // 標記種類（隨機挑），外觀在 skins.ts 的 makeRoadMark
 
   // ── 命 ──
   maxHearts: 3, // 失敗扣一條，用完從第一關重來
@@ -110,7 +120,7 @@ export interface LevelConfig {
   timeLimit: number; // 時限（秒），沒走到就失敗、重來本關
   playerForm: PlayerForm; // 這一關的行人型態（walker / stroller / wheelchair）
   spawnInterval: number; // 迎面車生成間隔（秒），越小車越密
-  speedScale: number; // 全部迎面車速乘上這個倍率
+  speedScale: number; // 車速倍率（左右兩半都吃；想分開調用下面兩個欄位覆寫）
   obstacleGapMin: number; // 路障最小間距（公尺），越小路障越密
   obstacleGapMax: number;
   obstacleRoadChance: number; // 路障長在路邊車道（違停）而非人行道的機率
@@ -123,6 +133,12 @@ export interface LevelConfig {
   intersectionEveryMin?: number; // 路口間距（公尺）
   intersectionEveryMax?: number;
   turnChance?: number; // 路邊車道的車在路口右轉的機率
+  // ↓ 可選：左右車速分開調（左＝迎面車道、右＝同向車道）。沒寫就用 speedScale。
+  speedScaleLeft?: number;
+  speedScaleRight?: number;
+  // ↓ 可選：人行道腳踏車。沒寫 bikeInterval 這關就沒有腳踏車。
+  bikeInterval?: number; // 每隔幾秒生成一台（左右人行道隨機）
+  bikeDirs?: "both" | "toward" | "away"; // 迎面 / 從背後來 / 兩個方向（預設 both）
   // ↓ 可選：過關地點。指定後，走到 goalDistance 還要「站上該側人行道」才過關，
   //   時間照跑。終點會出現一棟目的地建築（外觀在 skins.ts 的 makeDestinationBuilding）。
   goalSide?: "left" | "right";
@@ -139,6 +155,8 @@ export const LEVELS: LevelConfig[] = [
     obstacleGapMin: 12,
     obstacleGapMax: 24,
     obstacleRoadChance: 0.2,
+    bikeInterval: 5, // 這關開始人行道有腳踏車
+    bikeDirs: "both", // 腳踏車雙向夾擊
     goalSide: "right",
     destinationLabel: "公司",
   },
@@ -151,6 +169,8 @@ export const LEVELS: LevelConfig[] = [
     obstacleGapMin: 10,
     obstacleGapMax: 20,
     obstacleRoadChance: 0.3,
+    bikeInterval: 5, // 這關開始人行道有腳踏車
+    bikeDirs: "toward",
     goalSide: "left",
     destinationLabel: "托嬰中心",
   },
@@ -163,6 +183,8 @@ export const LEVELS: LevelConfig[] = [
     obstacleGapMin: 9,
     obstacleGapMax: 18,
     obstacleRoadChance: 0.35,
+    bikeInterval: 3.5,
+    bikeDirs: "both", // 腳踏車雙向夾擊
     goalSide: "right",
     destinationLabel: "醫院",
   },

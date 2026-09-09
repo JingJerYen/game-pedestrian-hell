@@ -111,14 +111,14 @@ export class Obstacles {
     return dz;
   }
 
-  // 同向車避開違停用：這條 x 附近、z 再往前（更小）range 公尺內有沒有路障
-  hasObstacleAhead(x: number, z: number, range: number): boolean {
-    return this.list.some(
-      (o) =>
-        Math.abs(o.mesh.position.x - x) < 1.2 &&
-        o.mesh.position.z < z &&
-        z - o.mesh.position.z < range,
-    );
+  // 車輛避讓用：這條 x 附近、「行進方向」前方 range 公尺內有沒有路障。
+  // travelDir：+1 = 往 +Z 開（迎面車/迎面腳踏車）、-1 = 往 -Z 開（同向）
+  hasObstacleAhead(x: number, z: number, range: number, travelDir: 1 | -1): boolean {
+    return this.list.some((o) => {
+      if (Math.abs(o.mesh.position.x - x) >= 1.2) return false;
+      const ahead = (o.mesh.position.z - z) * travelDir;
+      return ahead > 0 && ahead < range;
+    });
   }
 
   // 玩家想橫移到的位置會不會撞進路障
