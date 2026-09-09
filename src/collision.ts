@@ -10,13 +10,16 @@ export interface Size3 {
   readonly z: number;
 }
 
+// shrink 不傳就用 TUNING.hitboxShrink（致死判定從寬）；
+// 靜止路障的「擋住」判定要貼齊視覺，傳 TUNING.obstacleBlockShrink
 export function aabbHit(
   posA: THREE.Vector3,
   sizeA: Size3,
   posB: THREE.Vector3,
   sizeB: Size3,
+  shrink?: number,
 ): boolean {
-  const s = TUNING.hitboxShrink;
+  const s = shrink ?? TUNING.hitboxShrink;
   return (
     Math.abs(posA.x - posB.x) < ((sizeA.x + sizeB.x) / 2) * s &&
     Math.abs(posA.y - posB.y) < ((sizeA.y + sizeB.y) / 2) * s &&

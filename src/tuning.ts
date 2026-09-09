@@ -115,12 +115,12 @@ export const TUNING = {
       },
       car: {
         stripWidth: 3.4,
-        stallDepth: 2.4, // 汽車「車頭朝內垂直停」：格子淺、車身橫的
-        stallsMin: 3,
-        stallsMax: 5, // 段長 7~12 公尺
+        stallDepth: 5.6, // 汽車「直停」：車頭朝前後（正常停法），一格 3.4 寬 × 5.6 深
+        stallsMin: 2,
+        stallsMax: 4, // 段長 11~22 公尺
         occupancy: 0.8,
-        // 車身 4.4 比人行道 3.4 還寬 → 車尾突出到馬路上，人行道徹底封死
-        blockSize: { x: 4.4, y: 1.3, z: 1.8 },
+        // 車寬 1.8 < 人行道 3.4：行人硬要擠是擠得過去的；完全封死是機車格的工作
+        blockSize: { x: 1.8, y: 1.3, z: 4.4 },
       },
     },
   },
@@ -137,7 +137,8 @@ export const TUNING = {
   },
 
   // ── 碰撞 ──
-  hitboxShrink: 0.75, // 碰撞箱是視覺大小的幾成（從寬判定：差點撞到 > 冤枉死）
+  hitboxShrink: 0.75, // 致死碰撞箱是視覺大小的幾成（從寬判定：差點撞到 > 冤枉死）
+  obstacleBlockShrink: 0.98, // 路障「擋住」判定的縮比：幾乎貼齊視覺，行人才不會穿模
 } as const;
 
 export type PlayerForm = keyof typeof TUNING.playerForms;

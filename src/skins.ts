@@ -100,7 +100,7 @@ function parkingMaterial(kind: string, stalls: number): THREE.MeshLambertMateria
   const key = `${kind}:${stalls}`;
   let mat = parkingMaterials.get(key);
   if (!mat) {
-    const perStall = kind === "car" ? 96 : 64; // 汽車格（垂直停）比機車格深一點，比例才對
+    const perStall = kind === "car" ? 128 : 64; // 汽車格（直停）深、機車格淺，比例才對
     const canvas = document.createElement("canvas");
     canvas.width = 128;
     canvas.height = stalls * perStall;

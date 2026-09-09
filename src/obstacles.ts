@@ -182,8 +182,9 @@ export class Obstacles {
   }
 
   // 前方（或後退時後方）有路障就把這一幀的捲動量夾住，讓玩家貼著路障停下
+  // （用 obstacleBlockShrink：貼齊視覺，不然玩家會半個身體陷進路障）
   clampScroll(playerPos: THREE.Vector3, playerSize: Size3, dz: number): number {
-    const s = TUNING.hitboxShrink;
+    const s = TUNING.obstacleBlockShrink;
     for (const o of this.list) {
       const halfX = ((playerSize.x + o.size.x) / 2) * s;
       if (Math.abs(o.mesh.position.x - playerPos.x) >= halfX) continue;
@@ -208,9 +209,11 @@ export class Obstacles {
     });
   }
 
-  // 玩家想橫移到的位置會不會撞進路障
+  // 玩家想橫移到的位置會不會撞進路障（同樣貼齊視覺）
   blocksAt(pos: THREE.Vector3, size: Size3): boolean {
-    return this.list.some((o) => aabbHit(pos, size, o.mesh.position, o.size));
+    return this.list.some((o) =>
+      aabbHit(pos, size, o.mesh.position, o.size, TUNING.obstacleBlockShrink),
+    );
   }
 
   // 目前有路障佔著的車道（車輛生成時避開，才不會出現車穿過違停車的畫面）
