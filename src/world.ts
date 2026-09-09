@@ -3,8 +3,21 @@
 // 核心原則：玩家不動；main.ts 每幀給一個 dz（世界捲動量），這裡的東西照著捲。
 
 import * as THREE from "three";
-import { TUNING, colX, ROAD_RIGHT, BG_LEFT, BG_RIGHT } from "./tuning";
-import { makeBuilding, makeRoadMark, roadMarkMaterial } from "./skins";
+import {
+  TUNING,
+  colX,
+  ROAD_RIGHT,
+  BG_LEFT,
+  BG_RIGHT,
+  RIGHT_SIDEWALK_COL,
+} from "./tuning";
+import {
+  makeBuilding,
+  makeRoadMark,
+  roadMarkMaterial,
+  sidewalkMaterial,
+  makeSidewalkMark,
+} from "./skins";
 
 const ROAD_LENGTH = 220; // 路面長度（夠長到看不見盡頭就好）
 const DASH_SPACING = 6; // 車道虛線間距
@@ -16,6 +29,7 @@ export class World {
   private readonly scrolling: THREE.Mesh[] = []; // 會捲動循環的東西（車道虛線）
   private readonly buildings: THREE.Mesh[] = []; // 建築另外管理：進路口範圍要隱藏
   private readonly markGroups: THREE.Group[] = []; // 路面標記（慢/50）：一組=一側車道各一字
+  private readonly sidewalkMarks: THREE.Mesh[] = []; // 人行道上的「人行道」字
 
   constructor() {
     const t = TUNING;
@@ -42,14 +56,13 @@ export class World {
     road.position.set((roadLeft + BG_RIGHT) / 2, 0, roadZ);
     this.scene.add(road);
 
-    // 左右人行道（微微墊高的淺灰長條）
+    // 左右人行道（微微墊高的綠色長條；鋪面外觀在 skins.ts 的 sidewalkMaterial）
     const sidewalkGeo = new THREE.BoxGeometry(sidewalkWidth, 0.08, ROAD_LENGTH);
-    const sidewalkMat = new THREE.MeshLambertMaterial({ color: 0x8b8b90 });
     for (const centerX of [
       roadLeft - sidewalkWidth / 2,
       BG_RIGHT + sidewalkWidth / 2,
     ]) {
-      const sidewalk = new THREE.Mesh(sidewalkGeo, sidewalkMat);
+      const sidewalk = new THREE.Mesh(sidewalkGeo, sidewalkMaterial());
       sidewalk.position.set(centerX, 0.04, roadZ);
       this.scene.add(sidewalk);
     }
@@ -110,6 +123,19 @@ export class World {
       this.scene.add(group);
       this.markGroups.push(group);
     }
+
+    // 人行道「人行道」字（裝飾）：循環使用，繞回遠處時換隨機一側
+    for (let i = 0; i < t.sidewalkMarkCount; i++) {
+      const mark = makeSidewalkMark();
+      mark.position.x = this.randomSidewalkX();
+      mark.position.z = WRAP_Z - Math.random() * ROAD_LENGTH;
+      this.scene.add(mark);
+      this.sidewalkMarks.push(mark);
+    }
+  }
+
+  private randomSidewalkX(): number {
+    return colX(Math.random() < 0.5 ? 0 : RIGHT_SIDEWALK_COL);
   }
 
   // 重抽一組路面標記：隨機側別（左=迎面/右=同向）、隨機字（慢/50）
@@ -139,10 +165,12 @@ export class World {
   // intersectionCenters：目前路口的中心 Z——建築和「慢」字跟路口重疊時要隱藏
   // （切換發生在遠處的霧裡，玩家看不到跳變）。
   // destinationZone：目的地建築佔的位置——同側的一般建築讓位隱藏。
+  // parkingZones：停車格路段的位置——「人行道」字撞到就隱藏（黑鋪面上不該有綠鋪面的字）。
   update(
     dz: number,
     intersectionCenters: readonly number[],
     destinationZone: { z: number; side: "left" | "right"; margin: number } | null,
+    parkingZones: readonly { z: number; side: "left" | "right"; halfLen: number }[],
   ): void {
     const zoneHalf = TUNING.intersection.roadDepth / 2;
     const wrap = (mesh: THREE.Mesh): boolean => {
@@ -184,6 +212,16 @@ export class World {
       }
       if (wrapped) this.assignMarkGroup(group);
       group.visible = !nearZone(group.position.z, 2.5);
+    }
+    for (const mark of this.sidewalkMarks) {
+      if (wrap(mark)) mark.position.x = this.randomSidewalkX();
+      const side = mark.position.x < 0 ? "left" : "right";
+      const onParking = parkingZones.some(
+        (zone) =>
+          zone.side === side &&
+          Math.abs(mark.position.z - zone.z) < zone.halfLen + 3.6,
+      );
+      mark.visible = !nearZone(mark.position.z, 3.6) && !onParking; // 字長 6.8 的一半 + 緩衝
     }
   }
 }

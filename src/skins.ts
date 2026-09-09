@@ -22,15 +22,116 @@ export function makeZebraAcross(fromX: number, toX: number): THREE.Group {
   return group;
 }
 
-// 行人直行的斑馬線（人行道延伸段）
+// 行人直行的斑馬線（人行道延伸段）：鋪滿整段橫向路面，長度跟著路口縱深走
 export function makeZebraForward(centerX: number, depth: number): THREE.Group {
   const group = new THREE.Group();
-  for (let z = -depth / 2 + 0.8; z < depth / 2 - 0.3; z += 0.95) {
+  const half = depth / 2;
+  for (let z = -half + 0.6; z < half - 0.3; z += 0.95) {
     const bar = new THREE.Mesh(BAR_FORWARD_GEO, PAINT);
     bar.rotation.x = -Math.PI / 2;
     bar.position.set(centerX, 0.112, z);
     group.add(bar);
   }
+  return group;
+}
+
+// ── 人行道鋪面 ──
+// 預設鋪面：綠色（台灣標線型人行道）。之後換真鋪面貼圖就改這裡。
+const SIDEWALK_MAT = new THREE.MeshLambertMaterial({ color: 0x4e8a5c });
+export function sidewalkMaterial(): THREE.Material {
+  return SIDEWALK_MAT;
+}
+
+// 人行道上的直排「人行道」白字＋台灣人行道標線的行人小人 logo（裝飾）。
+// 字頂朝 -Z（玩家前方），從玩家視角由上往下讀「人／行／道」，方向才是對的。
+// 之後有正式 logo 素材，換掉這段 canvas 繪圖即可。
+function makeSidewalkMarkTexture(): THREE.Texture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 160;
+  canvas.height = 640;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 140px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ["人", "行", "道"].forEach((ch, i) => {
+    ctx.fillText(ch, 80, 90 + i * 150);
+  });
+  // 行人小人（走路姿勢）：頭＋身體＋前後腳＋手臂
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 16;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.arc(80, 495, 26, 0, Math.PI * 2); // 頭
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(80, 522);
+  ctx.lineTo(74, 572); // 身體
+  ctx.moveTo(74, 572);
+  ctx.lineTo(44, 622); // 前腳
+  ctx.moveTo(74, 572);
+  ctx.lineTo(108, 616); // 後腳
+  ctx.moveTo(78, 534);
+  ctx.lineTo(112, 562); // 前手
+  ctx.moveTo(78, 534);
+  ctx.lineTo(46, 556); // 後手
+  ctx.stroke();
+  return new THREE.CanvasTexture(canvas);
+}
+const SIDEWALK_MARK_GEO = new THREE.PlaneGeometry(1.7, 6.8);
+const SIDEWALK_MARK_MAT = new THREE.MeshBasicMaterial({
+  map: makeSidewalkMarkTexture(),
+  transparent: true,
+  opacity: 0.9,
+});
+export function makeSidewalkMark(): THREE.Mesh {
+  const mark = new THREE.Mesh(SIDEWALK_MARK_GEO, SIDEWALK_MARK_MAT);
+  mark.rotation.x = -Math.PI / 2; // rotation.z 保持 0：字頂朝 -Z，玩家讀起來是正的
+  mark.position.y = 0.09; // 疊在人行道（0.08）上
+  return mark;
+}
+
+// ── 停車格鋪面（人行道靠馬路那半邊換成黑底白格線）──
+// 兩種：機車格（瘦窄）、汽車格（長條）。canvas 畫格線當貼圖，
+// 之後換真鋪面素材就改這張圖。
+const parkingMaterials = new Map<string, THREE.MeshLambertMaterial>();
+function parkingMaterial(kind: string, stalls: number): THREE.MeshLambertMaterial {
+  const key = `${kind}:${stalls}`;
+  let mat = parkingMaterials.get(key);
+  if (!mat) {
+    const perStall = kind === "car" ? 96 : 64; // 汽車格（垂直停）比機車格深一點，比例才對
+    const canvas = document.createElement("canvas");
+    canvas.width = 128;
+    canvas.height = stalls * perStall;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#1b1c1f"; // 黑色鋪面
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#e8e8e8"; // 白色停車格線
+    ctx.lineWidth = 5;
+    for (let i = 0; i < stalls; i++) {
+      ctx.strokeRect(6, i * perStall + 4, 116, perStall - 8);
+    }
+    mat = new THREE.MeshLambertMaterial({ map: new THREE.CanvasTexture(canvas) });
+    parkingMaterials.set(key, mat);
+  }
+  return mat;
+}
+
+export function makeParkingPavement(
+  kind: "scooter" | "car",
+  stalls: number,
+  stallDepth: number,
+  width: number,
+): THREE.Group {
+  const group = new THREE.Group();
+  const pave = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, stalls * stallDepth),
+    parkingMaterial(kind, stalls),
+  );
+  pave.rotation.x = -Math.PI / 2;
+  pave.position.y = 0.085; // 貼在人行道面（0.08）上，視覺上是鋪面換掉
+  group.add(pave);
   return group;
 }
 

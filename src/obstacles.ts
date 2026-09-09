@@ -12,6 +12,8 @@ import {
 } from "./tuning";
 import { aabbHit, type Size3 } from "./collision";
 import type { Intersections } from "./intersections";
+import { makeParkingPavement } from "./skins";
+import { ROAD_LEFT, BG_RIGHT } from "./tuning";
 
 interface Obstacle {
   mesh: THREE.Mesh;
@@ -19,12 +21,19 @@ interface Obstacle {
   col: number; // 0 / RIGHT_SIDEWALK_COL = 人行道；1 / LAST_ROAD_COL = 路邊車道
 }
 
+// 停車格路段的「鋪面」：純裝飾、不擋人（擋人的是格子裡的機車堆，在 list 裡）
+interface Pavement {
+  mesh: THREE.Object3D;
+  halfLen: number;
+  col: number;
+}
+
 const SIDEWALK_COLORS = [0x6b6b70, 0x8a7a5c, 0x5c7a8a]; // 之後換成違停機車/攤販 sprite
-const LONG_COLOR = 0x50555e; // 超長路障（之後鋪機車停車格皮）
 const PARKED_CAR_COLORS = [0x9aa3ad, 0x7d8a99, 0xb0a08c];
 
 export class Obstacles {
   private readonly list: Obstacle[] = [];
+  private readonly pavements: Pavement[] = [];
   private nextSpawnAt = 10; // 走到第幾公尺會出現下一個路障
 
   constructor(private readonly scene: THREE.Scene) {}
@@ -44,55 +53,130 @@ export class Obstacles {
         this.list.splice(i, 1);
       }
     }
+    for (let i = this.pavements.length - 1; i >= 0; i--) {
+      const p = this.pavements[i];
+      p.mesh.position.z += dz;
+      if (p.mesh.position.z - p.halfLen > 30) {
+        this.scene.remove(p.mesh);
+        this.pavements.splice(i, 1);
+      }
+    }
     if (maxDist >= this.nextSpawnAt) {
       // 生成點撞到路口就先跳過，過幾公尺再試（路口範圍內不放路障）
       if (intersections.nearZone(-TUNING.obstacleSpawnZ, 10)) {
         this.nextSpawnAt = maxDist + 5;
         return;
       }
-      this.spawn(level);
+      const extraGap = this.spawn(level);
       this.nextSpawnAt =
         maxDist +
+        extraGap +
         THREE.MathUtils.lerp(level.obstacleGapMin, level.obstacleGapMax, Math.random());
     }
   }
 
-  private spawn(level: LevelConfig): void {
+  // 回傳這次生成額外吃掉的縱深（停車格路段比較長，下一個路障要多讓開一點）
+  private spawn(level: LevelConfig): number {
     const t = TUNING;
-    const onRoad = Math.random() < level.obstacleRoadChance;
-    let col: number;
-    let size: Size3;
-    let color: number;
-    if (onRoad) {
+    if (Math.random() < level.obstacleRoadChance) {
       // 違停車：左右兩側靠人行道的路邊車道
-      col = Math.random() < 0.5 ? 1 : LAST_ROAD_COL;
-      size = t.vehicles.car.size;
-      color = PARKED_CAR_COLORS[Math.floor(Math.random() * PARKED_CAR_COLORS.length)];
-    } else {
-      // 人行道路障：左右兩側都有，偶爾是超長版（機車停車格）
-      col = Math.random() < 0.5 ? 0 : RIGHT_SIDEWALK_COL;
-      const long = Math.random() < t.sidewalkLongChance;
-      size = long ? t.sidewalkLongObstacleSize : t.sidewalkObstacleSize;
-      color = long
-        ? LONG_COLOR
-        : SIDEWALK_COLORS[Math.floor(Math.random() * SIDEWALK_COLORS.length)];
+      const col = Math.random() < 0.5 ? 1 : LAST_ROAD_COL;
+      this.addBlock(
+        col,
+        colX(col),
+        -t.obstacleSpawnZ,
+        t.vehicles.car.size,
+        PARKED_CAR_COLORS[Math.floor(Math.random() * PARKED_CAR_COLORS.length)],
+      );
+      return 0;
     }
+    // 人行道：單顆路障，或整段停車格路段（半邊換成停車格鋪面）
+    const col = Math.random() < 0.5 ? 0 : RIGHT_SIDEWALK_COL;
+    if (Math.random() < t.parking.chance) return this.spawnParking(col);
+    this.addBlock(
+      col,
+      colX(col),
+      -t.obstacleSpawnZ,
+      t.sidewalkObstacleSize,
+      SIDEWALK_COLORS[Math.floor(Math.random() * SIDEWALK_COLORS.length)],
+    );
+    return 0;
+  }
+
+  // 停車格路段：人行道「靠馬路那半邊」換成停車格條（機車格瘦窄／汽車格長條），
+  // 剩下靠建築那邊仍是走道。每一格獨立擲骰決定有沒有停車，車輛貼齊格子。
+  private spawnParking(col: number): number {
+    const t = TUNING;
+    const kind: "scooter" | "car" =
+      Math.random() < t.parking.carChance ? "car" : "scooter";
+    const p = t.parking.types[kind];
+    const stalls =
+      p.stallsMin + Math.floor(Math.random() * (p.stallsMax - p.stallsMin + 1));
+    const len = stalls * p.stallDepth;
+    const centerZ = -t.obstacleSpawnZ;
+    // 停車格條貼齊人行道靠馬路的內緣
+    const stripX =
+      col === 0 ? ROAD_LEFT - p.stripWidth / 2 : BG_RIGHT + p.stripWidth / 2;
+
+    const pavement = makeParkingPavement(kind, stalls, p.stallDepth, p.stripWidth);
+    pavement.position.set(stripX, 0, centerZ);
+    this.scene.add(pavement);
+    this.pavements.push({ mesh: pavement, halfLen: len / 2, col });
+
+    const colors = kind === "car" ? PARKED_CAR_COLORS : SIDEWALK_COLORS;
+    for (let i = 0; i < stalls; i++) {
+      if (Math.random() >= p.occupancy) continue;
+      const stallZ = centerZ - len / 2 + (i + 0.5) * p.stallDepth;
+      this.addBlock(
+        col,
+        stripX,
+        stallZ,
+        p.blockSize,
+        colors[Math.floor(Math.random() * colors.length)],
+      );
+    }
+    return len / 2;
+  }
+
+  private addBlock(
+    col: number,
+    x: number,
+    z: number,
+    size: Size3,
+    color: number,
+  ): void {
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(size.x, size.y, size.z),
       new THREE.MeshLambertMaterial({ color }),
     );
-    mesh.position.set(colX(col), size.y / 2, -t.obstacleSpawnZ);
+    mesh.position.set(x, size.y / 2, z);
     this.scene.add(mesh);
     this.list.push({ mesh, size, col });
   }
 
-  // 路口生成時清掉跟它重疊的路障（先生成的路障擋在後生成的路口上時用）
+  // world.ts 用：停車格路段的位置（該處的「人行道」字要隱藏）
+  parkingZones(): { z: number; side: "left" | "right"; halfLen: number }[] {
+    return this.pavements.map((p) => ({
+      z: p.mesh.position.z,
+      side: p.col === 0 ? "left" : "right",
+      halfLen: p.halfLen,
+    }));
+  }
+
+  // 路口生成時清掉跟它重疊的路障與停車格鋪面（先生成的擋在後生成的路口上時用）
   removeNear(z: number, margin: number): void {
     for (let i = this.list.length - 1; i >= 0; i--) {
       const o = this.list[i];
       if (Math.abs(o.mesh.position.z - z) < margin + o.size.z / 2) {
         this.scene.remove(o.mesh);
         this.list.splice(i, 1);
+      }
+    }
+    for (let i = this.pavements.length - 1; i >= 0; i--) {
+      const p = this.pavements[i];
+      if (Math.abs(p.mesh.position.z - z) < margin + p.halfLen) {
+        this.scene.remove(p.mesh);
+        this.pavements.splice(i, 1);
       }
     }
   }
@@ -146,6 +230,8 @@ export class Obstacles {
   reset(): void {
     for (const o of this.list) this.scene.remove(o.mesh);
     this.list.length = 0;
+    for (const p of this.pavements) this.scene.remove(p.mesh);
+    this.pavements.length = 0;
     this.nextSpawnAt = 10;
   }
 }

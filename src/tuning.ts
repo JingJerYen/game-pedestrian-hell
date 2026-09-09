@@ -84,6 +84,7 @@ export const TUNING = {
   // ── 路面標記（「慢」「50」：成對出現在同一側兩條車道、字向跟著車行方向）──
   roadMarkPairs: 2, // 同時存在幾組（一組 = 一側的每條車道各一個字）
   roadMarkLabels: ["慢", "50"], // 標記種類（隨機挑），外觀在 skins.ts 的 makeRoadMark
+  sidewalkMarkCount: 2, // 人行道上同時存在幾個直排「人行道」字（裝飾）
 
   // ── 命 ──
   maxHearts: 3, // 失敗扣一條，用完從第一關重來
@@ -93,16 +94,43 @@ export const TUNING = {
 
   // ── 靜止路障（擋路不致死；「多密、多常違停」由下面的關卡表決定）──
   sidewalkObstacleSize: { x: 2.2, y: 1.3, z: 2.8 }, // 人行道路障（機車堆、攤販…）
-  sidewalkLongObstacleSize: { x: 2.2, y: 1.1, z: 14 }, // 超長路障（之後鋪機車停車格皮）
-  sidewalkLongChance: 0.25, // 人行道路障是超長版的機率
   obstacleSpawnZ: 96, // 路障生成在前方多遠（比車生成點再遠一點，避免疊到車）
+
+  // ── 停車格路段（人行道「靠馬路那半邊」直接換成停車格鋪面接手，
+  //    靠建築那半邊仍是綠色走道；格子裡可能停著車）──
+  parking: {
+    chance: 0.95, // 人行道路障事件是「停車格路段」而非單顆路障的機率
+    carChance: 0.35, // 停車格路段是汽車格（而非機車格）的機率——調高會看到滿街汽車格
+    types: {
+      // stripWidth 3.4 = 人行道視覺全寬（斷頭式人行道，整段被停車格接管）。
+      // 注意：一段的長度 = 格數 × stallDepth；段越長，下一個事件會多讓開
+      // 「段長一半」的距離，而且太長容易跟路口重疊被清掉——stallDepth 調大要節制。
+      scooter: {
+        stripWidth: 3.4,
+        stallDepth: 1.0, // 機車「橫停」：一格 3.4 寬 × 1.0 深
+        stallsMin: 6,
+        stallsMax: 12, // 段長 6~12 公尺（格數每段隨機抽）
+        occupancy: 0.8, // 每格停著車的機率（空格可以走過去）
+        blockSize: { x: 3.2, y: 1.1, z: 0.8 }, // 一整排橫停機車，填滿格寬 → 人行道封死
+      },
+      car: {
+        stripWidth: 3.4,
+        stallDepth: 2.4, // 汽車「車頭朝內垂直停」：格子淺、車身橫的
+        stallsMin: 3,
+        stallsMax: 5, // 段長 7~12 公尺
+        occupancy: 0.8,
+        // 車身 4.4 比人行道 3.4 還寬 → 車尾突出到馬路上，人行道徹底封死
+        blockSize: { x: 4.4, y: 1.3, z: 1.8 },
+      },
+    },
+  },
 
   // ── 路口（永遠綠燈；唯一威脅是迎面車右轉掃過斑馬線）──
   intersection: {
     firstAt: 50, // 每關第一個路口在幾公尺處
     everyMin: 70, // 之後每隔幾公尺一個路口（隨機取 min~max）
     everyMax: 110,
-    roadDepth: 9, // 橫向小路的縱深（公尺）
+    roadDepth: 14, // 橫向小路的縱深（公尺）——縱向斑馬線要走多長就調這個
     spawnZ: 120, // 路口生成在前方多遠
     turnChance: 0.35, // 靠人行道車道的迎面車在路口右轉的機率（卡車不轉）
     turnSeconds: 0.9, // 轉彎轉 90 度花幾秒（越短轉越兇）
@@ -154,9 +182,9 @@ export const LEVELS: LevelConfig[] = [
     playerForm: "walker",
     spawnInterval: 1.3,
     speedScale: 1.0,
-    obstacleGapMin: 12,
-    obstacleGapMax: 24,
-    obstacleRoadChance: 0.2,
+    obstacleGapMin: 2,
+    obstacleGapMax: 5,
+    obstacleRoadChance: 0.1,
     bikeInterval: 5, // 這關開始人行道有腳踏車
     bikeDirs: "both", // 腳踏車雙向夾擊
     goalSide: "right",
@@ -227,11 +255,11 @@ export function colX(col: number): number {
   return RIGHT_SIDEWALK_X;
 }
 
-// 玩家橫移範圍：左人行道左緣 ～ 右人行道右緣
-export const WALK_MIN_X = colX(0) - TUNING.laneWidth / 2;
-export const WALK_MAX_X = RIGHT_SIDEWALK_X + TUNING.laneWidth / 2;
-
-// 人行道的視覺寬度（world.ts 與目的地建築的定位共用）
+// 人行道的視覺寬度（world.ts、停車格與目的地建築的定位共用）
 export const SIDEWALK_WIDTH = TUNING.laneWidth + 0.8;
 // 迎面車道左緣（左人行道右緣）
 export const ROAD_LEFT = -TUNING.laneWidth / 2;
+
+// 玩家橫移範圍：整條人行道（含貼建築的邊緣）都能走
+export const WALK_MIN_X = ROAD_LEFT - SIDEWALK_WIDTH;
+export const WALK_MAX_X = BG_RIGHT + SIDEWALK_WIDTH;

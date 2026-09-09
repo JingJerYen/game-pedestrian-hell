@@ -186,7 +186,7 @@ renderer.setAnimationLoop(() => {
       obstacles.removeNear(z, TUNING.intersection.roadDepth / 2 + 2),
     );
     destination.update(dz, position, lv);
-    world.update(dz, intersections.centers(), destination.zone);
+    world.update(dz, intersections.centers(), destination.zone, obstacles.parkingZones());
     obstacles.update(dz, maxDistance, lv, intersections);
     traffic.update(dt, dz, obstacles, lv, intersections);
     const dirX = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
