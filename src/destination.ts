@@ -4,6 +4,7 @@
 
 import * as THREE from "three";
 import {
+  TUNING,
   SIDEWALK_WIDTH,
   ROAD_LEFT,
   BG_RIGHT,
@@ -30,8 +31,8 @@ export class Destination {
     this.group = makeDestinationBuilding(level.destinationLabel ?? "終點");
     const x =
       this.side === "left"
-        ? ROAD_LEFT - SIDEWALK_WIDTH - 1.5 - 4.5
-        : BG_RIGHT + SIDEWALK_WIDTH + 1.5 + 4.5;
+        ? ROAD_LEFT - SIDEWALK_WIDTH - TUNING.buildingGap - 4.5
+        : BG_RIGHT + SIDEWALK_WIDTH + TUNING.buildingGap + 4.5;
     this.group.position.set(x, 0, -(level.goalDistance - position));
     this.scene.add(this.group);
   }

@@ -79,7 +79,7 @@ function makeSidewalkMarkTexture(): THREE.Texture {
   ctx.stroke();
   return new THREE.CanvasTexture(canvas);
 }
-const SIDEWALK_MARK_GEO = new THREE.PlaneGeometry(1.7, 6.8);
+const SIDEWALK_MARK_GEO = new THREE.PlaneGeometry(2.3, 9.2);
 const SIDEWALK_MARK_MAT = new THREE.MeshBasicMaterial({
   map: makeSidewalkMarkTexture(),
   transparent: true,

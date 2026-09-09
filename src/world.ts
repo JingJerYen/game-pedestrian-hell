@@ -67,6 +67,17 @@ export class World {
       this.scene.add(sidewalk);
     }
 
+    // 紅線（禁止停車）：人行道與車道的交界，連續不間斷
+    // （路口的橫向路面墊得比較高，會自然把紅線蓋掉，視覺上就是線在路口中斷）
+    const redGeo = new THREE.PlaneGeometry(0.15, ROAD_LENGTH);
+    const redMat = new THREE.MeshBasicMaterial({ color: 0xb03a2e });
+    for (const x of [roadLeft + 0.1, BG_RIGHT - 0.1]) {
+      const line = new THREE.Mesh(redGeo, redMat);
+      line.rotation.x = -Math.PI / 2;
+      line.position.set(x, 0.011, roadZ);
+      this.scene.add(line);
+    }
+
     // 雙黃線（取代分隔島；行人可以直接跨越）
     const yellowGeo = new THREE.PlaneGeometry(0.1, ROAD_LENGTH);
     const yellowMat = new THREE.MeshBasicMaterial({ color: 0xd8b012 });
@@ -102,8 +113,8 @@ export class World {
         const h = 4 + Math.random() * 10;
         const x =
           side === -1
-            ? roadLeft - sidewalkWidth - 1.5 - w / 2
-            : BG_RIGHT + sidewalkWidth + 1.5 + w / 2;
+            ? roadLeft - sidewalkWidth - t.buildingGap - w / 2
+            : BG_RIGHT + sidewalkWidth + t.buildingGap + w / 2;
         const building = makeBuilding(w, h, 8);
         building.position.set(x, h / 2, WRAP_Z - i * BUILDING_SPACING);
         this.scene.add(building);
@@ -219,9 +230,9 @@ export class World {
       const onParking = parkingZones.some(
         (zone) =>
           zone.side === side &&
-          Math.abs(mark.position.z - zone.z) < zone.halfLen + 3.6,
+          Math.abs(mark.position.z - zone.z) < zone.halfLen + 4.8,
       );
-      mark.visible = !nearZone(mark.position.z, 3.6) && !onParking; // 字長 6.8 的一半 + 緩衝
+      mark.visible = !nearZone(mark.position.z, 4.8) && !onParking; // 字長 9.2 的一半 + 緩衝
     }
   }
 }
