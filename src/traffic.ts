@@ -22,7 +22,8 @@ import type { Obstacles } from "./obstacles";
 
 interface Car {
   mesh: THREE.Mesh;
-  speed: number; // 車自己的車速（會加在世界捲動之上）
+  speed: number; // 想開的車速（會加在世界捲動之上）
+  effSpeed: number; // 這一幀實際的車速（被前車擋住時會低於 speed）
   size: Size3;
   dir: 1 | -1; // 1 = 迎面（往 +Z 衝向鏡頭）、-1 = 同向（往 -Z 遠去）
   turner: boolean; // 到路口會不會右轉
@@ -81,12 +82,37 @@ export class Traffic {
       this.bikeTimer -= dt;
       if (this.bikeTimer <= 0) {
         this.bikeTimer = level.bikeInterval;
-        this.spawnBike(level);
+        this.spawnBike(level, obstacles);
       }
     }
 
     const centers = intersections.centers();
     const turnStep = (Math.PI / 2) * (dt / t.intersection.turnSeconds);
+
+    // 跟車（不超車）：同車道、同方向、前方間隙太小 → 這一幀速度收斂到不超過前車。
+    // 參考的是前車「上一幀」的實際速度，一幀的延遲讓車隊自然收斂，不用管計算順序。
+    const newEff: number[] = [];
+    for (let i = 0; i < this.cars.length; i++) {
+      const car = this.cars[i];
+      let eff = car.speed;
+      if (car.mode === "straight") {
+        for (const other of this.cars) {
+          if (other === car || other.mode !== "straight" || other.dir !== car.dir) continue;
+          if (
+            Math.abs(other.mesh.position.x - car.mesh.position.x) > t.followXRange
+          )
+            continue;
+          const ahead =
+            (other.mesh.position.z - car.mesh.position.z) * car.dir;
+          const gap = ahead - (car.size.z + other.size.z) / 2;
+          if (ahead > 0 && gap < t.followDistance) {
+            eff = Math.min(eff, other.effSpeed);
+          }
+        }
+      }
+      newEff.push(eff);
+    }
+    this.cars.forEach((car, i) => (car.effSpeed = newEff[i]));
 
     for (let i = this.cars.length - 1; i >= 0; i--) {
       const car = this.cars[i];
@@ -94,7 +120,7 @@ export class Traffic {
       p.z += dz; // 世界捲動人人有份
 
       if (car.mode === "straight") {
-        p.z += car.dir * car.speed * dt;
+        p.z += car.dir * car.effSpeed * dt; // 被前車擋住時 effSpeed < speed
         // 避讓路障：同向車追上違停就往內側（-X）繞；
         // 人行道腳踏車遇到路障就往馬路那側繞（跟行人一樣被逼下馬路）
         const avoidDir = car.sidewalkBike
@@ -186,9 +212,12 @@ export class Traffic {
       dir === 1
         ? (level.speedScaleLeft ?? level.speedScale)
         : (level.speedScaleRight ?? level.speedScale);
+    const speed =
+      THREE.MathUtils.lerp(v.speedMin, v.speedMax, Math.random()) * scale;
     this.cars.push({
       mesh,
-      speed: THREE.MathUtils.lerp(v.speedMin, v.speedMax, Math.random()) * scale,
+      speed,
+      effSpeed: speed,
       size: v.size,
       dir,
       turner,
@@ -201,24 +230,32 @@ export class Traffic {
   }
 
   // 人行道腳踏車：慢、會蛇行、撞到照樣死。方向依關卡設定（迎面/背後/雙向）
-  private spawnBike(level: LevelConfig): void {
+  private spawnBike(level: LevelConfig, obstacles: Obstacles): void {
     const b = TUNING.bike;
     const dirs = level.bikeDirs ?? "both";
     const dir: 1 | -1 =
       dirs === "toward" ? 1 : dirs === "away" ? -1 : Math.random() < 0.5 ? 1 : -1;
     const col = Math.random() < 0.5 ? 0 : RIGHT_SIDEWALK_COL; // 左右人行道隨機
     const baseX = colX(col) + (Math.random() * 2 - 1) * b.wander;
+    // 出生點附近有路障就先不生（不然會直接生在路障裡面）
+    const spawnZ = dir === 1 ? -TUNING.spawnDistance : 18;
+    if (obstacles.hasObstacleAhead(baseX, spawnZ - dir * 6, 12, dir)) {
+      this.bikeTimer = 0.4; // 過一下再試
+      return;
+    }
     const color = b.colors[Math.floor(Math.random() * b.colors.length)];
     const mesh = new THREE.Mesh(
       this.bikeGeometry,
       new THREE.MeshLambertMaterial({ color }),
     );
-    mesh.position.set(baseX, b.size.y / 2, dir === 1 ? -TUNING.spawnDistance : 18);
+    mesh.position.set(baseX, b.size.y / 2, spawnZ);
     if (dir === -1) mesh.rotation.y = Math.PI;
     this.scene.add(mesh);
+    const speed = THREE.MathUtils.lerp(b.speedMin, b.speedMax, Math.random());
     this.cars.push({
       mesh,
-      speed: THREE.MathUtils.lerp(b.speedMin, b.speedMax, Math.random()),
+      speed,
+      effSpeed: speed,
       size: b.size,
       dir,
       turner: false,

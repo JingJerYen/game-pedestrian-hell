@@ -112,12 +112,15 @@ export class Obstacles {
   }
 
   // 車輛避讓用：這條 x 附近、「行進方向」前方 range 公尺內有沒有路障。
-  // travelDir：+1 = 往 +Z 開（迎面車/迎面腳踏車）、-1 = 往 -Z 開（同向）
+  // travelDir：+1 = 往 +Z 開（迎面車/迎面腳踏車）、-1 = 往 -Z 開（同向）。
+  // 把路障當成一段區間看：要「完全超過尾端＋2 公尺餘裕」才算過了——
+  // 不然繞到一半就切回來，會從長路障（機車停車格）的後半段穿過去。
   hasObstacleAhead(x: number, z: number, range: number, travelDir: 1 | -1): boolean {
     return this.list.some((o) => {
       if (Math.abs(o.mesh.position.x - x) >= 1.2) return false;
-      const ahead = (o.mesh.position.z - z) * travelDir;
-      return ahead > 0 && ahead < range;
+      const centerAhead = (o.mesh.position.z - z) * travelDir;
+      const half = o.size.z / 2;
+      return centerAhead + half > -2 && centerAhead - half < range;
     });
   }
 
