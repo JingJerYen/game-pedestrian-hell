@@ -17,6 +17,7 @@ import {
   type DeathCause,
 } from "./tuning";
 import { aabbHit, type Size3 } from "./collision";
+import { preloadVehicleSkins, vehicleMaterial } from "./vehicleskins";
 import type { Player } from "./player";
 import type { Intersections } from "./intersections";
 import type { Obstacles } from "./obstacles";
@@ -56,6 +57,7 @@ export class Traffic {
         new THREE.BoxGeometry(v.size.x, v.size.y, v.size.z),
       );
     }
+    preloadVehicleSkins(); // 有貼圖就換皮，沒有就維持色塊
   }
 
   // dz = 這一幀世界捲了多少
@@ -213,7 +215,7 @@ export class Traffic {
     const color = v.colors[Math.floor(Math.random() * v.colors.length)];
     const mesh = new THREE.Mesh(
       this.geometries.get(type)!,
-      new THREE.MeshLambertMaterial({ color }),
+      vehicleMaterial(type, color), // 有貼圖=貼圖箱子，沒貼圖=純色（vehicleskins.ts）
     );
     // 迎面車從遠處生成；同向車從鏡頭後方開出來（會突然從你背後出現，這是設計）
     const z = dir === 1 ? -t.spawnDistance : 18;
@@ -261,7 +263,7 @@ export class Traffic {
     const color = b.colors[Math.floor(Math.random() * b.colors.length)];
     const mesh = new THREE.Mesh(
       this.bikeGeometry,
-      new THREE.MeshLambertMaterial({ color }),
+      vehicleMaterial("bike", color), // 腳踏車也吃同一套貼皮管線
     );
     mesh.position.set(baseX, b.size.y / 2, spawnZ);
     if (dir === -1) mesh.rotation.y = Math.PI;
