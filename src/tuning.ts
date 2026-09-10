@@ -143,6 +143,48 @@ export const TUNING = {
     turnSeconds: 0.9, // 轉彎轉 90 度花幾秒（越短轉越兇）
   },
 
+  // ── 無限模式（手動 LEVELS 全過後無縫接手；生成邏輯在 levelgen.ts）──
+  // 「一直爬」：難度在 rampLevels 關內爬到天花板，之後所有參數停在最兇值，
+  // 玩的是「你能撐到第幾關」。各 *Max/*End 是天花板，嫌不夠兇就調。
+  endless: {
+    seed: 20260910, // 固定種子：每個玩家的第 N 關一模一樣（排行榜才公平）。改它＝換一整套關卡
+    rampLevels: 25, // 幾關內把難度爬到天花板
+    goalBase: 180, // 目標距離 = goalBase + 關深×goalPerLevel + 抖動，封頂 goalMax
+    goalPerLevel: 12,
+    goalJitter: 50,
+    goalMax: 380, // 距離不無限變長（太長會無聊），難度靠密度和車速堆
+    marginStart: 2.2, // 時限餘裕 = 直走所需秒數的幾倍；永遠 > 1 = 永遠走得完（公平鐵則）
+    marginEnd: 1.35,
+    spawnIntervalStart: 1.2, // 迎面車生成間隔（秒）
+    spawnIntervalMin: 0.45,
+    speedScaleMax: 1.6, // 車速倍率天花板
+    obstacleGapMinStart: 12, // 路障間距（越小越密）
+    obstacleGapMinEnd: 4,
+    obstacleGapMaxStart: 24,
+    obstacleGapMaxEnd: 9,
+    roadChanceStart: 0.2, // 違停（路邊車道路障）機率
+    roadChanceEnd: 0.5,
+    turnChanceEnd: 0.7, // 路口右轉機率天花板（起點沿用 intersection.turnChance）
+    bikeIntervalStart: 6, // 人行道腳踏車生成間隔（秒）
+    bikeIntervalEnd: 2.5,
+    formWeights: { walker: 0.5, stroller: 0.3, wheelchair: 0.2 }, // 行人型態抽選權重
+    sideHintUntil: 4, // 無限模式第幾關之後，不再提示終點在哪側（自己找目的地大樓）
+    entryFlavor: "你以為到了？台灣的路是走不完的", // 進入無限模式第一關的橫幅小語
+    destinations: [
+      // 目的地招牌字 + 配套的風味小語（隨機抽）；想加場景就加一行
+      { label: "公司", flavor: "趕著打卡" },
+      { label: "超商", flavor: "包裹保存最後一天" },
+      { label: "郵局", flavor: "掛號快截止了" },
+      { label: "醫院", flavor: "回診快來不及了" },
+      { label: "托嬰中心", flavor: "寶寶快遲到了" },
+      { label: "學校", flavor: "家長日要開始了" },
+      { label: "夜市", flavor: "朋友已經在排隊" },
+      { label: "火車站", flavor: "火車不等人" },
+      { label: "銀行", flavor: "三點半前要軋進去" },
+      { label: "宮廟", flavor: "吉時快過了" },
+    ],
+  },
+
   // ── 碰撞 ──
   hitboxShrink: 0.75, // 致死碰撞箱是視覺大小的幾成（從寬判定：差點撞到 > 冤枉死）
   obstacleBlockShrink: 0.98, // 路障「擋住」判定的縮比：幾乎貼齊視覺，行人才不會穿模

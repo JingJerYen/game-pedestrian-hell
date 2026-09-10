@@ -5,6 +5,7 @@
 
 import * as THREE from "three";
 import { TUNING, LEVELS } from "./tuning";
+import { getLevel } from "./levelgen";
 import { World } from "./world";
 import { Player } from "./player";
 import { Traffic } from "./traffic";
@@ -64,7 +65,8 @@ window.addEventListener("keyup", (e) => {
 });
 
 // ── 關卡狀態 ──
-let state: "levelStart" | "running" | "fail" | "win" = "levelStart";
+// （沒有「全破」狀態：手動關卡表走完就無縫接無限生成，見 levelgen.ts）
+let state: "levelStart" | "running" | "fail" = "levelStart";
 let levelIndex = 0;
 let hearts = TUNING.maxHearts;
 let position = 0; // 本關目前走到第幾公尺（後退會減少）
@@ -74,12 +76,12 @@ let bannerTimer = 0; // 開場橫幅倒數，歸零自動開始
 let resultAt = 0; // 失敗/通關畫面出現的時間戳：停留滿 resultHoldSeconds 才接受按鍵
 
 function level() {
-  return LEVELS[levelIndex];
+  return getLevel(levelIndex);
 }
 
 function startLevel(index: number): void {
   levelIndex = index;
-  const lv = LEVELS[index];
+  const lv = getLevel(index);
   position = 0;
   maxDistance = 0;
   timeLeft = lv.timeLimit;
@@ -132,9 +134,6 @@ function tryAdvance(): void {
       hearts = TUNING.maxHearts;
       startLevel(0);
     }
-  } else if (state === "win") {
-    hearts = TUNING.maxHearts;
-    startLevel(0);
   }
 }
 window.addEventListener("keydown", tryAdvance);
@@ -211,13 +210,8 @@ renderer.setAnimationLoop(() => {
       !lv.goalSide ||
       (lv.goalSide === "left" ? px < ROAD_LEFT : px > BG_RIGHT);
     if (reached && sideOk) {
-      // 過關：還有下一關就進下一關，沒有就通關
-      if (levelIndex + 1 < LEVELS.length) startLevel(levelIndex + 1);
-      else {
-        state = "win";
-        resultAt = performance.now();
-        hud.showWin(TUNING.resultHoldSeconds * 1000);
-      }
+      // 過關：永遠有下一關（表用完由 levelgen 無縫接手）
+      startLevel(levelIndex + 1);
     } else if (traffic.hitsPlayer(player)) {
       failLevel("你被撞了 🛵");
     } else if (timeLeft <= 0) {
@@ -242,7 +236,10 @@ renderer.setAnimationLoop(() => {
     const c = traffic.counts();
     return [
       `state ${state}`,
-      `level ${levelIndex + 1}/${LEVELS.length} (${lv.playerForm})`,
+      `level ${levelIndex + 1} (${lv.playerForm})` +
+        (levelIndex >= LEVELS.length
+          ? `  [endless 第${levelIndex - LEVELS.length + 1}關]`
+          : ""),
       `pos ${position.toFixed(1)} / max ${maxDistance.toFixed(1)} / goal ${lv.goalDistance}`,
       `time ${timeLeft.toFixed(1)}s`,
       `spawnInterval ${lv.spawnInterval}s  speedScale ${lv.speedScale}`,
