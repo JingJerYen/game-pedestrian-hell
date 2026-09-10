@@ -181,6 +181,11 @@ export interface LevelConfig {
   //   時間照跑。終點會出現一棟目的地建築（外觀在 skins.ts 的 makeDestinationBuilding）。
   goalSide?: "left" | "right";
   destinationLabel?: string; // 目的地建築的招牌字（之後換貼皮）
+  // ↓ 可選：關卡風味小語（如「趕著打卡」），顯示在開場橫幅；不填就不顯示
+  flavorText?: string;
+  // ↓ 可選：提示開關。目的地建築照樣會出現，只是不告訴玩家在哪/多遠——讓他自己找
+  hideSideHint?: boolean; // true = 不提示終點在左/右側（橫幅、HUD、「到了！」提示都不出現）
+  hideDistanceHint?: boolean; // true = 不顯示目標距離（HUD 只顯示已走公尺數）
 }
 
 export const LEVELS: LevelConfig[] = [
@@ -197,6 +202,8 @@ export const LEVELS: LevelConfig[] = [
     bikeDirs: "both", // 腳踏車雙向夾擊
     goalSide: "right",
     destinationLabel: "公司",
+    flavorText: "趕著打卡",
+    hideSideHint: true,
   },
   {
     goalDistance: 30,
@@ -211,6 +218,7 @@ export const LEVELS: LevelConfig[] = [
     bikeDirs: "toward",
     goalSide: "left",
     destinationLabel: "托嬰中心",
+    flavorText: "寶寶快遲到了",
   },
   {
     goalDistance: 35,
@@ -225,6 +233,7 @@ export const LEVELS: LevelConfig[] = [
     bikeDirs: "both", // 腳踏車雙向夾擊
     goalSide: "right",
     destinationLabel: "醫院",
+    flavorText: "回診快來不及了",
   },
 ];
 

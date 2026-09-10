@@ -89,12 +89,20 @@ function startLevel(index: number): void {
   obstacles.reset();
   intersections.reset();
   destination.reset();
+  world.resetSidewalkMarks();
   hud.hideOverlays();
-  const goalText = lv.goalSide
-    ? `走到 ${lv.goalDistance}m 的${SIDE_LABEL[lv.goalSide]}人行道`
-    : `走到 ${lv.goalDistance}m`;
+  // 目標提示依關卡設定組合：側別/距離都可以個別關掉（讓玩家自己找目的地）
+  const showSide = !!lv.goalSide && !lv.hideSideHint;
+  const showDist = !lv.hideDistanceHint;
+  const sideText = showSide ? SIDE_LABEL[lv.goalSide!] : "";
+  let goalText: string;
+  if (showDist && showSide) goalText = `走到 ${lv.goalDistance}m 的${sideText}人行道`;
+  else if (showDist) goalText = `走到 ${lv.goalDistance}m`;
+  else if (showSide) goalText = `終點在${sideText}人行道`;
+  else goalText = "自己找到終點";
   hud.showBanner(
     `第 ${index + 1} 關`,
+    lv.flavorText ?? "",
     `${FORM_LABEL[lv.playerForm]}｜${goalText}｜時限 ${lv.timeLimit} 秒`,
   );
   bannerTimer = 2.0;
@@ -217,19 +225,19 @@ renderer.setAnimationLoop(() => {
     }
   }
 
-  const sideLabel = lv.goalSide ? SIDE_LABEL[lv.goalSide] : "";
-  const progressText =
-    lv.goalSide && position >= lv.goalDistance
-      ? `到了！請走到${sideLabel}人行道`
-      : `${Math.floor(position)} / ${lv.goalDistance} m${lv.goalSide ? `（終點在${sideLabel}）` : ""}`;
-  hud.setStatus(
-    hearts,
-    TUNING.maxHearts,
-    levelIndex,
-    LEVELS.length,
-    progressText,
-    timeLeft,
-  );
+  // HUD 進度列：提示依關卡設定（hideSideHint / hideDistanceHint）組合
+  const showSideHint = !!lv.goalSide && !lv.hideSideHint;
+  const sideLabel = showSideHint ? SIDE_LABEL[lv.goalSide!] : "";
+  let progressText: string;
+  if (showSideHint && position >= lv.goalDistance) {
+    progressText = `到了！請走到${sideLabel}人行道`;
+  } else {
+    const dist = lv.hideDistanceHint
+      ? `${Math.floor(position)} m`
+      : `${Math.floor(position)} / ${lv.goalDistance} m`;
+    progressText = dist + (showSideHint ? `（終點在${sideLabel}）` : "");
+  }
+  hud.setStatus(hearts, TUNING.maxHearts, levelIndex, progressText, timeLeft);
   debug.update(dt, () => {
     const c = traffic.counts();
     return [

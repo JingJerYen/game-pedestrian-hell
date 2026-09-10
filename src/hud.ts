@@ -13,6 +13,7 @@ export class Hud {
   private readonly timer = el("timer");
   private readonly banner = el("banner");
   private readonly bannerTitle = el("banner-title");
+  private readonly bannerFlavor = el("banner-flavor");
   private readonly bannerSub = el("banner-sub");
   private readonly fail = el("fail");
   private readonly failTitle = el("fail-title");
@@ -26,20 +27,22 @@ export class Hud {
     hearts: number,
     maxHearts: number,
     levelIndex: number,
-    levelCount: number,
     progressText: string,
     timeLeft: number,
   ): void {
     this.hearts.textContent =
       "❤ ".repeat(hearts) + "🖤 ".repeat(maxHearts - hearts);
-    this.level.textContent = `第 ${levelIndex + 1} / ${levelCount} 關`;
+    // 關數一直往上累計（之後接無限隨機關卡，沒有「總共幾關」這種事）
+    this.level.textContent = `第 ${levelIndex + 1} 關`;
     this.progress.textContent = progressText;
     this.timer.textContent = `⏱ ${Math.max(timeLeft, 0).toFixed(1)}`;
     this.timer.classList.toggle("low", timeLeft < 10);
   }
 
-  showBanner(title: string, sub: string): void {
+  // flavor = 關卡風味小語（「趕著打卡」…），空字串就不顯示
+  showBanner(title: string, flavor: string, sub: string): void {
     this.bannerTitle.textContent = title;
+    this.bannerFlavor.textContent = flavor;
     this.bannerSub.textContent = sub;
     this.banner.classList.add("show");
   }

@@ -67,12 +67,12 @@ export class World {
       this.scene.add(sidewalk);
     }
 
-    // 紅線（禁止停車）：人行道與車道的交界，連續不間斷
-    // （路口的橫向路面墊得比較高，會自然把紅線蓋掉，視覺上就是線在路口中斷）
-    const redGeo = new THREE.PlaneGeometry(0.15, ROAD_LENGTH);
-    const redMat = new THREE.MeshBasicMaterial({ color: 0xb03a2e });
+    // 路邊白線：人行道與車道的交界，連續不間斷
+    // （路口的橫向路面墊得比較高，會自然把線蓋掉，視覺上就是線在路口中斷）
+    const edgeGeo = new THREE.PlaneGeometry(0.15, ROAD_LENGTH);
+    const edgeMat = new THREE.MeshBasicMaterial({ color: 0xe8e8e8 });
     for (const x of [roadLeft + 0.1, BG_RIGHT - 0.1]) {
-      const line = new THREE.Mesh(redGeo, redMat);
+      const line = new THREE.Mesh(edgeGeo, edgeMat);
       line.rotation.x = -Math.PI / 2;
       line.position.set(x, 0.011, roadZ);
       this.scene.add(line);
@@ -138,11 +138,27 @@ export class World {
     // 人行道「人行道」字（裝飾）：循環使用，繞回遠處時換隨機一側
     for (let i = 0; i < t.sidewalkMarkCount; i++) {
       const mark = makeSidewalkMark();
-      mark.position.x = this.randomSidewalkX();
-      mark.position.z = WRAP_Z - Math.random() * ROAD_LENGTH;
       this.scene.add(mark);
       this.sidewalkMarks.push(mark);
     }
+    this.resetSidewalkMarks();
+  }
+
+  // 每關開場把「人行道」字擺回玩家眼前（左側緊鄰出生點、右側稍遠），
+  // 讓玩家從第一眼就認得綠鋪面是人行道；其餘的隨機散佈
+  resetSidewalkMarks(): void {
+    this.sidewalkMarks.forEach((mark, i) => {
+      if (i === 0) {
+        mark.position.x = colX(0);
+        mark.position.z = -6;
+      } else if (i === 1) {
+        mark.position.x = colX(RIGHT_SIDEWALK_COL);
+        mark.position.z = -12;
+      } else {
+        mark.position.x = this.randomSidewalkX();
+        mark.position.z = WRAP_Z - Math.random() * ROAD_LENGTH;
+      }
+    });
   }
 
   private randomSidewalkX(): number {

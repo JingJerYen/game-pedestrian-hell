@@ -72,6 +72,14 @@
       #banner {
         background: rgba(0, 0, 0, 0.4);
       }
+      /* 關卡的風味小語（如「趕著打卡」），沒設定就是空的不佔位 */
+      #banner-flavor {
+        font-size: 26px;
+        color: #ffd97a;
+      }
+      #banner-flavor:empty {
+        display: none;
+      }
       /* 失敗畫面：之後要換素材／改版面就改這一塊（文字由 hud.ts 的 showFail 塞入） */
       #fail {
         background: rgba(120, 0, 0, 0.45);
@@ -139,6 +147,7 @@
     </div>
     <div id="banner" class="overlay">
       <h1 id="banner-title"></h1>
+      <p id="banner-flavor"></p>
       <p id="banner-sub"></p>
     </div>
     <div id="fail" class="overlay">
