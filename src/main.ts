@@ -19,6 +19,8 @@ import { DebugOverlay } from "./debug";
 
 const FORM_LABEL = { walker: "步行", stroller: "推嬰兒車", wheelchair: "坐輪椅" } as const;
 const SIDE_LABEL = { left: "左側", right: "右側" } as const;
+// 抵達判定：離目標距離 ± 1 公尺才算「在目的地」（遊戲規則，固定值不調參）
+const GOAL_ARRIVE_RANGE = 1;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -203,8 +205,10 @@ renderer.setAnimationLoop(() => {
     maxDistance = Math.max(maxDistance, position);
     timeLeft -= dt;
 
-    // 過關判定：走到目標距離；關卡有指定 goalSide 的話，還要站上該側人行道
-    const reached = position >= lv.goalDistance;
+    // 過關判定：人要「在」目的地（目標距離 ± GOAL_ARRIVE_RANGE 之內）——
+    // 走過頭不算，得走回來；關卡有指定 goalSide 的話，還要站上該側人行道
+    const reached =
+      Math.abs(position - lv.goalDistance) <= GOAL_ARRIVE_RANGE;
     const px = player.mesh.position.x;
     const sideOk =
       !lv.goalSide ||
@@ -223,7 +227,10 @@ renderer.setAnimationLoop(() => {
   const showSideHint = !!lv.goalSide && !lv.hideSideHint;
   const sideLabel = showSideHint ? SIDE_LABEL[lv.goalSide!] : "";
   let progressText: string;
-  if (showSideHint && position >= lv.goalDistance) {
+  const goalOffset = position - lv.goalDistance;
+  if (!lv.hideDistanceHint && goalOffset > GOAL_ARRIVE_RANGE) {
+    progressText = "走過頭了！目的地在後面，往回走 ↓";
+  } else if (showSideHint && Math.abs(goalOffset) <= GOAL_ARRIVE_RANGE) {
     progressText = `到了！請走到${sideLabel}人行道`;
   } else {
     const dist = lv.hideDistanceHint
