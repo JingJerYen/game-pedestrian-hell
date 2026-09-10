@@ -93,6 +93,38 @@ export const TUNING = {
   roadMarkLabels: ["慢", "50"], // 標記種類（隨機挑），外觀在 skins.ts 的 makeRoadMark
   sidewalkMarkCount: 2, // 人行道上同時存在幾個直排「人行道」字（裝飾）
 
+  // ── 死亡／過關字幕（後台自由編輯）──
+  // 每種死法：title = 失敗畫面大標題；facts = 小知識池，死亡時隨機抽一條顯示
+  // （池子留空陣列就不顯示小知識）。標「示例」的文字都等你替換。
+  deathCaptions: {
+    scooter: {
+      title: "你被機車撞了 🛵",
+      facts: ["（示例）機車事故是台灣交通死傷的最大宗"],
+    },
+    car: {
+      title: "你被汽車撞了 🚗",
+      facts: ["（示例）台灣每年有上千名行人在人行道被撞"],
+    },
+    truck: {
+      title: "你被大卡車撞了 🚚",
+      facts: ["（示例）大車視野死角很大——你看得到車，不代表司機看得到你"],
+    },
+    bike: {
+      title: "你被人行道上的腳踏車撞了 🚲",
+      facts: ["（示例）連人行道都不安全，這就是行人地獄"],
+    },
+    turning: {
+      title: "右轉車沒有讓你 🚗💨",
+      facts: ["（示例）台灣行人死亡率是東亞最高等級"],
+    },
+    timeout: {
+      title: "時間到 ⏰",
+      facts: ["（示例）在台灣走路，永遠比你想的更花時間"],
+    },
+  },
+  // 過關字幕池：過關進下一關時，開場橫幅隨機抽一條（留空陣列就不顯示）
+  clearFlavors: ["平安抵達，今天也活下來了"],
+
   // ── 命 ──
   maxHearts: 3, // 失敗扣一條，用完從第一關重來
 
@@ -192,6 +224,8 @@ export const TUNING = {
 
 export type PlayerForm = keyof typeof TUNING.playerForms;
 export type VehicleType = keyof typeof TUNING.vehicles;
+// 死法（＝deathCaptions 的鍵）："timeout" 以外的都是被車撞，由 traffic 回報兇手
+export type DeathCause = keyof typeof TUNING.deathCaptions;
 
 // ── 關卡表（後台調整用，玩家看不到）──
 // 加關卡 = 加一個物件；順序就是關卡順序。

@@ -13,7 +13,7 @@ import { Obstacles } from "./obstacles";
 import { Intersections } from "./intersections";
 import { Destination } from "./destination";
 import { TouchControls } from "./touch";
-import { ROAD_LEFT, BG_RIGHT } from "./tuning";
+import { ROAD_LEFT, BG_RIGHT, type DeathCause } from "./tuning";
 import { Hud } from "./hud";
 import { DebugOverlay } from "./debug";
 
@@ -76,6 +76,7 @@ let maxDistance = 0; // 本關最遠走到幾公尺（過關與路障生成都�
 let timeLeft = 0; // 本關剩餘秒數
 let bannerTimer = 0; // 開場橫幅倒數，歸零自動開始
 let resultAt = 0; // 失敗/通關畫面出現的時間戳：停留滿 resultHoldSeconds 才接受按鍵
+let justCleared = false; // 剛過關（下一關的橫幅要抽一條過關字幕）
 
 function level() {
   return getLevel(levelIndex);
@@ -104,21 +105,32 @@ function startLevel(index: number): void {
   else if (showDist) goalText = `走到 ${lv.goalDistance}m`;
   else if (showSide) goalText = `終點在${sideText}人行道`;
   else goalText = "自己找到終點";
+  // 剛過關的話抽一條過關字幕，跟這一關自己的風味小語並排
+  const clearLine = justCleared ? pickFrom(TUNING.clearFlavors) : "";
+  justCleared = false;
+  const flavor = [clearLine, lv.flavorText ?? ""].filter(Boolean).join("｜");
   hud.showBanner(
     `第 ${index + 1} 關`,
-    lv.flavorText ?? "",
+    flavor,
     `${FORM_LABEL[lv.playerForm]}｜${goalText}｜時限 ${lv.timeLimit} 秒`,
   );
   bannerTimer = 2.0;
   state = "levelStart";
 }
 
-function failLevel(title: string): void {
+// 從池子隨機抽一條（空池回傳空字串）
+function pickFrom(pool: readonly string[]): string {
+  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : "";
+}
+
+function failLevel(cause: DeathCause): void {
+  const caption = TUNING.deathCaptions[cause];
   hearts--;
   state = "fail";
   resultAt = performance.now();
   hud.showFail(
-    title,
+    caption.title,
+    pickFrom(caption.facts),
     hearts > 0 ? `剩 ${hearts} 條命` : "命用完了……",
     hearts > 0 ? "按任意鍵重來本關" : "按任意鍵從第一關重新開始",
     TUNING.resultHoldSeconds * 1000,
@@ -213,13 +225,15 @@ renderer.setAnimationLoop(() => {
     const sideOk =
       !lv.goalSide ||
       (lv.goalSide === "left" ? px < ROAD_LEFT : px > BG_RIGHT);
+    const hitBy = traffic.hitsPlayer(player);
     if (reached && sideOk) {
       // 過關：永遠有下一關（表用完由 levelgen 無縫接手）
+      justCleared = true;
       startLevel(levelIndex + 1);
-    } else if (traffic.hitsPlayer(player)) {
-      failLevel("你被撞了 🛵");
+    } else if (hitBy) {
+      failLevel(hitBy); // 依兇手車種顯示對應的死亡字幕
     } else if (timeLeft <= 0) {
-      failLevel("時間到 ⏰");
+      failLevel("timeout");
     }
   }
 

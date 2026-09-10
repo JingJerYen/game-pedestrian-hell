@@ -17,6 +17,7 @@ export class Hud {
   private readonly bannerSub = el("banner-sub");
   private readonly fail = el("fail");
   private readonly failTitle = el("fail-title");
+  private readonly failFlavor = el("fail-flavor");
   private readonly failSub = el("fail-sub");
   private readonly failPrompt = el("fail-prompt");
   private readonly win = el("win");
@@ -47,9 +48,17 @@ export class Hud {
     this.banner.classList.add("show");
   }
 
+  // flavor = 死亡小知識（空字串就不顯示）；
   // promptDelayMs 過後才顯示「按任意鍵」，跟 main.ts 開始接受按鍵的時間點一致
-  showFail(title: string, sub: string, prompt: string, promptDelayMs: number): void {
+  showFail(
+    title: string,
+    flavor: string,
+    sub: string,
+    prompt: string,
+    promptDelayMs: number,
+  ): void {
     this.failTitle.textContent = title;
+    this.failFlavor.textContent = flavor;
     this.failSub.textContent = sub;
     this.failPrompt.textContent = "";
     this.fail.classList.add("show");

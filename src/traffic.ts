@@ -14,6 +14,7 @@ import {
   randomVehicleType,
   type VehicleType,
   type LevelConfig,
+  type DeathCause,
 } from "./tuning";
 import { aabbHit, type Size3 } from "./collision";
 import type { Player } from "./player";
@@ -32,6 +33,7 @@ interface Car {
   baseX: number; // 自己車道的位置（含 wander）
   avoid: number; // 繞開路障的橫向偏移
   sidewalkBike: boolean; // 人行道腳踏車（不轉彎、繞路障時往馬路那側閃）
+  kind: "scooter" | "car" | "truck" | "bike"; // 車種（死亡字幕要報兇手）
 }
 
 export class Traffic {
@@ -238,6 +240,7 @@ export class Traffic {
       baseX,
       avoid: 0,
       sidewalkBike: false,
+      kind: type,
     });
   }
 
@@ -276,6 +279,7 @@ export class Traffic {
       baseX,
       avoid: 0,
       sidewalkBike: true,
+      kind: "bike",
     });
   }
 
@@ -310,10 +314,16 @@ export class Traffic {
     return { x: l, y: car.size.y, z: l };
   }
 
-  hitsPlayer(player: Player): boolean {
-    return this.cars.some((car) =>
-      aabbHit(player.mesh.position, player.size, car.mesh.position, this.hitSize(car)),
-    );
+  // 回報死因（兇手車種；正在轉彎的算 "turning"）；沒撞到回傳 null
+  hitsPlayer(player: Player): Exclude<DeathCause, "timeout"> | null {
+    for (const car of this.cars) {
+      if (
+        aabbHit(player.mesh.position, player.size, car.mesh.position, this.hitSize(car))
+      ) {
+        return car.mode !== "straight" ? "turning" : car.kind;
+      }
+    }
+    return null;
   }
 
   // debug overlay 用

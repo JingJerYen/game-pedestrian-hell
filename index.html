@@ -84,6 +84,16 @@
       #fail {
         background: rgba(120, 0, 0, 0.45);
       }
+      /* 死亡小知識（從 tuning.ts 的 deathCaptions 池隨機抽），空的不佔位 */
+      #fail-flavor {
+        font-size: 19px;
+        color: #ffd9c9;
+        max-width: 34em;
+        padding: 0 16px;
+      }
+      #fail-flavor:empty {
+        display: none;
+      }
       /* 通關畫面：細節未定，先佔位 */
       #win {
         background: rgba(0, 90, 45, 0.5);
@@ -152,6 +162,7 @@
     </div>
     <div id="fail" class="overlay">
       <h1 id="fail-title"></h1>
+      <p id="fail-flavor"></p>
       <p id="fail-sub"></p>
       <p id="fail-prompt"></p>
     </div>
