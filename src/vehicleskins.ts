@@ -54,8 +54,9 @@ export function vehicleMaterial(
   const key = `${kind}_${color}`;
   let mats = materialCache.get(key);
   if (!mats) {
+    // alphaTest：貼圖的透明部分直接剪掉（把箱子剪出車的輪廓，不再方方正正）
     const tinted = (map: THREE.Texture) =>
-      new THREE.MeshLambertMaterial({ map, color });
+      new THREE.MeshLambertMaterial({ map, color, alphaTest: 0.5 });
     // 側面圖車頭朝右畫；另一側用鏡像，兩側車頭才會朝同一個方向
     const mirrored = side.clone();
     mirrored.wrapS = THREE.RepeatWrapping;
