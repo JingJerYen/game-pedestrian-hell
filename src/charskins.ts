@@ -64,6 +64,9 @@ export function makeCharacterRig(
   if (!charactersReady(form)) return null;
   const src = loaded[Math.floor(Math.random() * loaded.length)];
   const model = cloneSkeleton(src.scene);
+  // 骨架模型的包圍框用綁定姿勢算，某些鏡頭角度（直式俯視特別容易）會被
+  // 誤判在畫面外而整隻消失——關閉剔除，玩家只有一隻，零效能代價
+  model.traverse((obj) => (obj.frustumCulled = false));
 
   const bbox = new THREE.Box3().setFromObject(model);
   const height = bbox.max.y - bbox.min.y;
