@@ -204,6 +204,58 @@ export function makeTrafficLight(): THREE.Group {
   return group;
 }
 
+// ── 機車停等區（路口斑馬線前的白框格）──
+// 台灣標準樣式：白色框線＋白字「機車」，中間不填色（柏油原色）。
+// placeholder 的「不填色」= 疊一張柏油色內板露出白邊；之後換貼圖就改這個 factory。
+// 純視覺裝飾，跟斑馬線一樣不影響任何判定。
+function makeScooterBoxTexture(): THREE.Texture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 72px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("機車", 128, 68);
+  return new THREE.CanvasTexture(canvas);
+}
+const SCOOTER_BOX_BORDER_MAT = new THREE.MeshBasicMaterial({ color: 0xe8e8e8 });
+const SCOOTER_BOX_FILL_MAT = new THREE.MeshBasicMaterial({ color: 0x3a3a3e }); // 柏油原色＝不填色
+const SCOOTER_BOX_TEXT_MAT = new THREE.MeshBasicMaterial({
+  map: makeScooterBoxTexture(),
+  transparent: true,
+});
+
+// 平躺的三層：白框（大）→ 柏油色內板（內縮，露出白邊）→ 「機車」字。
+// 字預設朝 +Z 的人可讀；給迎面車讀的那格，由呼叫端把整組 rotation.y 轉 180 度。
+export function makeScooterBox(width: number, depth: number): THREE.Group {
+  const group = new THREE.Group();
+  const layers: [THREE.PlaneGeometry, THREE.MeshBasicMaterial, number][] = [
+    [new THREE.PlaneGeometry(width, depth), SCOOTER_BOX_BORDER_MAT, 0.02],
+    [new THREE.PlaneGeometry(width - 0.3, depth - 0.3), SCOOTER_BOX_FILL_MAT, 0.025],
+    [new THREE.PlaneGeometry(2.2, 1.1), SCOOTER_BOX_TEXT_MAT, 0.03],
+  ];
+  for (const [geo, mat, y] of layers) {
+    const plane = new THREE.Mesh(geo, mat);
+    plane.rotation.x = -Math.PI / 2;
+    plane.position.y = y;
+    group.add(plane);
+  }
+  return group;
+}
+
+// 停止線（汽車停在這條線後面，機車鑽進前方的停等區）
+export function makeStopLine(width: number): THREE.Mesh {
+  const line = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, 0.45),
+    SCOOTER_BOX_BORDER_MAT,
+  );
+  line.rotation.x = -Math.PI / 2;
+  line.position.y = 0.02;
+  return line;
+}
+
 // ── 路旁建築 ──
 // 之後貼皮：把單一材質換成六面材質陣列（正面招牌、側面牆），或整個換成模型。
 export function makeBuilding(w: number, h: number, depth: number): THREE.Mesh {

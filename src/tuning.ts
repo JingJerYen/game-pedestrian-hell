@@ -138,7 +138,7 @@ export const TUNING = {
     everyMin: 70, // 之後每隔幾公尺一個路口（隨機取 min~max）
     everyMax: 110,
     roadDepth: 14, // 橫向小路的縱深（公尺）——縱向斑馬線要走多長就調這個
-    spawnZ: 120, // 路口生成在前方多遠
+    spawnZ: 120, // 路口生成在前方多遠（生成點要藏在霧裡；測試時可暫調 40 就近看）
     turnChance: 0.35, // 靠人行道車道的迎面車在路口右轉的機率（卡車不轉）
     turnSeconds: 0.9, // 轉彎轉 90 度花幾秒（越短轉越兇）
   },
@@ -232,7 +232,7 @@ export interface LevelConfig {
 
 export const LEVELS: LevelConfig[] = [
   {
-    goalDistance: 200,
+    goalDistance: 20,
     timeLimit: 90,
     playerForm: "walker",
     spawnInterval: 1.3,

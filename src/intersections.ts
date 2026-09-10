@@ -6,13 +6,22 @@ import * as THREE from "three";
 import {
   TUNING,
   colX,
+  ROAD_LEFT,
+  ROAD_RIGHT,
+  BG_LEFT,
   BG_RIGHT,
   RIGHT_SIDEWALK_COL,
   WALK_MIN_X,
   WALK_MAX_X,
   type LevelConfig,
 } from "./tuning";
-import { makeZebraAcross, makeZebraForward, makeTrafficLight } from "./skins";
+import {
+  makeZebraAcross,
+  makeZebraForward,
+  makeTrafficLight,
+  makeScooterBox,
+  makeStopLine,
+} from "./skins";
 
 // 共用幾何與材質（每個路口只是重複引用，生成/移除都很便宜）
 const ASPHALT = new THREE.MeshLambertMaterial({ color: 0x3a3a3e });
@@ -76,11 +85,33 @@ export class Intersections {
       group.add(makeZebraForward(x, depth));
     }
 
-    // 紅綠燈（永遠綠燈）：路口近側兩角各一支
+    // 行人紅綠燈（永遠綠燈）：立在路口「對面」兩角——過馬路時正對著你，
+    // 跟現實一樣（行人燈在你要走去的那一頭）
     for (const x of [WALK_MIN_X - 0.6, WALK_MAX_X + 0.6]) {
       const light = makeTrafficLight();
-      light.position.set(x, 0, depth / 2 + 0.6);
+      light.position.set(x, 0, -(depth / 2 + 0.6));
       group.add(light);
+    }
+
+    // 機車停等區＋停止線：依台灣法規，從車的方向看是
+    // 停止線 → 機車停等區 → 斑馬線 → 路口（機車排在汽車前面等）。
+    // 迎面車從遠方(-Z)來 → 畫在遠側，停等區的字轉 180 度給它們讀；
+    // 同向車從你背後(+Z)來 → 畫在近側。
+    const boxDepth = 2.4; // 停等區縱深
+    const boxZ = depth / 2 + 1.5; // 停等區中心離路口邊緣多遠（在斑馬線之外的主路面上）
+    const stopLineZ = boxZ + boxDepth / 2 + 0.7; // 停止線在停等區後方
+    for (const side of [-1, 1] as const) {
+      // side = -1 迎面（遠側）、+1 同向（近側）
+      const left = side === -1 ? ROAD_LEFT : BG_LEFT;
+      const right = side === -1 ? ROAD_RIGHT : BG_RIGHT;
+      const box = makeScooterBox(right - left, boxDepth);
+      box.position.set((left + right) / 2, 0, side * boxZ);
+      if (side === -1) box.rotation.y = Math.PI;
+      group.add(box);
+      const stopLine = makeStopLine(right - left);
+      stopLine.position.x = (left + right) / 2; // y 已在 factory 裡墊高，別蓋掉
+      stopLine.position.z = side * stopLineZ;
+      group.add(stopLine);
     }
 
     group.position.z = z;
