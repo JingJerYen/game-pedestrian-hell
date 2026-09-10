@@ -13,10 +13,11 @@ import {
 import { aabbHit, type Size3 } from "./collision";
 import type { Intersections } from "./intersections";
 import { makeParkingPavement } from "./skins";
+import { makeVehicleMesh } from "./vehicleskins";
 import { ROAD_LEFT, BG_RIGHT } from "./tuning";
 
 interface Obstacle {
-  mesh: THREE.Mesh;
+  mesh: THREE.Object3D; // 外觀（3D 模型或方塊）；原點＝碰撞箱中心
   size: Size3;
   col: number; // 0 / RIGHT_SIDEWALK_COL = 人行道；1 / LAST_ROAD_COL = 路邊車道
 }
@@ -79,14 +80,14 @@ export class Obstacles {
   private spawn(level: LevelConfig): number {
     const t = TUNING;
     if (Math.random() < level.obstacleRoadChance) {
-      // 違停車：左右兩側靠人行道的路邊車道
+      // 違停車：左右兩側靠人行道的路邊車道，車頭順著該側車流方向
       const col = Math.random() < 0.5 ? 1 : LAST_ROAD_COL;
-      this.addBlock(
+      this.addParkedCar(
         col,
         colX(col),
         -t.obstacleSpawnZ,
         t.vehicles.car.size,
-        PARKED_CAR_COLORS[Math.floor(Math.random() * PARKED_CAR_COLORS.length)],
+        col === 1 ? 0 : Math.PI,
       );
       return 0;
     }
@@ -123,19 +124,47 @@ export class Obstacles {
     this.scene.add(pavement);
     this.pavements.push({ mesh: pavement, halfLen: len / 2, col });
 
-    const colors = kind === "car" ? PARKED_CAR_COLORS : SIDEWALK_COLORS;
     for (let i = 0; i < stalls; i++) {
       if (Math.random() >= p.occupancy) continue;
       const stallZ = centerZ - len / 2 + (i + 0.5) * p.stallDepth;
-      this.addBlock(
-        col,
-        stripX,
-        stallZ,
-        p.blockSize,
-        colors[Math.floor(Math.random() * colors.length)],
-      );
+      if (kind === "car") {
+        // 停車格汽車：Kenney 模型，車頭隨機朝前朝後（路邊停車的日常）
+        this.addParkedCar(
+          col,
+          stripX,
+          stallZ,
+          p.blockSize,
+          Math.random() < 0.5 ? 0 : Math.PI,
+        );
+      } else {
+        // 機車格：維持方塊，等二輪模型到位再換
+        this.addBlock(
+          col,
+          stripX,
+          stallZ,
+          p.blockSize,
+          SIDEWALK_COLORS[Math.floor(Math.random() * SIDEWALK_COLORS.length)],
+        );
+      }
     }
     return len / 2;
+  }
+
+  // 停放的汽車：走跟車流同一套外觀管線（Kenney 模型，缺模型退回色塊）
+  private addParkedCar(
+    col: number,
+    x: number,
+    z: number,
+    size: Size3,
+    rotationY: number,
+  ): void {
+    const color =
+      PARKED_CAR_COLORS[Math.floor(Math.random() * PARKED_CAR_COLORS.length)];
+    const mesh = makeVehicleMesh("car", color);
+    mesh.position.set(x, size.y / 2, z);
+    mesh.rotation.y = rotationY;
+    this.scene.add(mesh);
+    this.list.push({ mesh, size, col });
   }
 
   private addBlock(
