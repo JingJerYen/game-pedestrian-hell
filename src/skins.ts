@@ -246,6 +246,46 @@ export function makeScooterBox(width: number, depth: number): THREE.Group {
   return group;
 }
 
+// ── 公車停靠區（外側車道貼路邊線的長方形標線，裝飾）──
+// 白框、不填色、直排「公車停靠區」。字預設給往 -Z 開的（同向側）讀；
+// 迎面側由呼叫端把整組 rotation.y 轉 180 度。
+function makeBusZoneTexture(): THREE.Texture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 640;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 96px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const chars = "公車停靠區";
+  for (let i = 0; i < chars.length; i++) {
+    ctx.fillText(chars[i], 64, 64 + i * 128);
+  }
+  return new THREE.CanvasTexture(canvas);
+}
+const BUS_ZONE_TEXT_MAT = new THREE.MeshBasicMaterial({
+  map: makeBusZoneTexture(),
+  transparent: true,
+  opacity: 0.9,
+});
+
+export function makeBusZone(width: number, length: number): THREE.Group {
+  const group = new THREE.Group();
+  const layers: [THREE.PlaneGeometry, THREE.MeshBasicMaterial, number][] = [
+    [new THREE.PlaneGeometry(width, length), SCOOTER_BOX_BORDER_MAT, 0.02],
+    [new THREE.PlaneGeometry(width - 0.24, length - 0.24), SCOOTER_BOX_FILL_MAT, 0.025],
+    [new THREE.PlaneGeometry(1.3, 6.5), BUS_ZONE_TEXT_MAT, 0.03], // 直排五字
+  ];
+  for (const [geo, mat, y] of layers) {
+    const plane = new THREE.Mesh(geo, mat);
+    plane.rotation.x = -Math.PI / 2;
+    plane.position.y = y;
+    group.add(plane);
+  }
+  return group;
+}
+
 // 停止線（汽車停在這條線後面，機車鑽進前方的停等區）
 export function makeStopLine(width: number): THREE.Mesh {
   const line = new THREE.Mesh(

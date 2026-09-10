@@ -6,6 +6,7 @@ import * as THREE from "three";
 import {
   TUNING,
   colX,
+  ROAD_LEFT,
   ROAD_RIGHT,
   BG_LEFT,
   BG_RIGHT,
@@ -17,6 +18,7 @@ import {
   roadMarkMaterial,
   sidewalkMaterial,
   makeSidewalkMark,
+  makeBusZone,
 } from "./skins";
 
 const ROAD_LENGTH = 220; // 路面長度（夠長到看不見盡頭就好）
@@ -30,6 +32,7 @@ export class World {
   private readonly buildings: THREE.Mesh[] = []; // 建築另外管理：進路口範圍要隱藏
   private readonly markGroups: THREE.Group[] = []; // 路面標記（慢/50）：一組=一側車道各一字
   private readonly sidewalkMarks: THREE.Mesh[] = []; // 人行道上的「人行道」字
+  private readonly busZones: THREE.Group[] = []; // 公車停靠區：外側車道貼路邊線的長條
 
   constructor() {
     const t = TUNING;
@@ -142,6 +145,23 @@ export class World {
       this.sidewalkMarks.push(mark);
     }
     this.resetSidewalkMarks();
+
+    // 公車停靠區（裝飾）：循環使用，繞回遠處時換隨機一側
+    for (let i = 0; i < t.busZone.count; i++) {
+      const zone = makeBusZone(LW * t.busZone.widthRatio, t.busZone.length);
+      this.assignBusZone(zone);
+      zone.position.z = WRAP_Z - Math.random() * ROAD_LENGTH;
+      this.scene.add(zone);
+      this.busZones.push(zone);
+    }
+  }
+
+  // 重抽公車停靠區的側別：貼著該側的路邊線，迎面側整組轉 180 度讓字向跟車行方向
+  private assignBusZone(zone: THREE.Group): void {
+    const width = TUNING.laneWidth * TUNING.busZone.widthRatio;
+    const left = Math.random() < 0.5;
+    zone.position.x = left ? ROAD_LEFT + width / 2 : BG_RIGHT - width / 2;
+    zone.rotation.y = left ? Math.PI : 0;
   }
 
   // 每關開場把「人行道」字擺回玩家眼前（左側緊鄰出生點、右側稍遠），
@@ -239,6 +259,20 @@ export class World {
       }
       if (wrapped) this.assignMarkGroup(group);
       group.visible = !nearZone(group.position.z, 2.5);
+    }
+    for (const zone of this.busZones) {
+      zone.position.z += dz;
+      let wrapped = false;
+      if (zone.position.z > WRAP_Z) {
+        zone.position.z -= ROAD_LENGTH;
+        wrapped = true;
+      } else if (zone.position.z < WRAP_Z - ROAD_LENGTH) {
+        zone.position.z += ROAD_LENGTH;
+        wrapped = true;
+      }
+      if (wrapped) this.assignBusZone(zone);
+      // 長條的一半 + 緩衝，跟路口重疊就隱藏
+      zone.visible = !nearZone(zone.position.z, TUNING.busZone.length / 2 + 2);
     }
     for (const mark of this.sidewalkMarks) {
       if (wrap(mark)) mark.position.x = this.randomSidewalkX();
