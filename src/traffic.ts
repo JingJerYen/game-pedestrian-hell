@@ -120,7 +120,6 @@ export class Traffic {
       p.z += dz; // 世界捲動人人有份
 
       if (car.mode === "straight") {
-        p.z += car.dir * car.effSpeed * dt; // 被前車擋住時 effSpeed < speed
         // 避讓路障：同向車追上違停就往內側（-X）繞；
         // 人行道腳踏車遇到路障就往馬路那側繞（跟行人一樣被逼下馬路）
         const avoidDir = car.sidewalkBike
@@ -131,12 +130,25 @@ export class Traffic {
             ? -1
             : 0;
         if (avoidDir !== 0) {
-          const want = obstacles.hasObstacleAhead(car.baseX, p.z, 16, car.dir)
+          let want = obstacles.hasObstacleAhead(car.baseX, p.z, 16, car.dir)
             ? avoidDir * TUNING.laneWidth * (car.sidewalkBike ? 0.9 : 1)
             : 0;
+          // 腳踏車讓車（一）：要繞下馬路但目標車道有車 → 在路障前煞停等空檔
+          if (
+            car.sidewalkBike &&
+            want !== 0 &&
+            Math.abs(car.avoid) < t.bikeYield.commitDist && // 繞出去一半就不回頭
+            this.laneBusy(car.baseX + want, p.z)
+          ) {
+            want = 0;
+            car.effSpeed = 0;
+          }
           car.avoid = THREE.MathUtils.damp(car.avoid, want, 3, dt);
           p.x = car.baseX + car.avoid;
         }
+        // 腳踏車讓車（二）：附近有車正在轉彎（會掃過人行道延伸段）→ 煞停讓它過
+        if (car.sidewalkBike && this.turnerNear(p.z)) car.effSpeed = 0;
+        p.z += car.dir * car.effSpeed * dt; // 被前車/讓車擋住時 effSpeed < speed
         // 到路口了就開始右轉
         if (car.turner && centers.some((c) => Math.abs(p.z - c) < 1.2)) {
           car.mode = "turning";
@@ -265,6 +277,27 @@ export class Traffic {
       avoid: 0,
       sidewalkBike: true,
     });
+  }
+
+  // 腳踏車讓車用：目標車道位置附近有沒有（非腳踏車的）車
+  private laneBusy(targetX: number, z: number): boolean {
+    const y = TUNING.bikeYield;
+    return this.cars.some(
+      (o) =>
+        !o.sidewalkBike &&
+        o.mode === "straight" &&
+        Math.abs(o.mesh.position.x - targetX) < TUNING.laneWidth * 0.7 &&
+        Math.abs(o.mesh.position.z - z) < y.laneClearRange,
+    );
+  }
+
+  // 腳踏車讓車用：附近有沒有車正在轉彎（轉彎中或轉完橫向駛離都算）
+  private turnerNear(z: number): boolean {
+    return this.cars.some(
+      (o) =>
+        o.mode !== "straight" &&
+        Math.abs(o.mesh.position.z - z) < TUNING.bikeYield.turnerRange,
+    );
   }
 
   // 轉彎中/轉完的車，碰撞箱要跟著車頭方向近似調整
