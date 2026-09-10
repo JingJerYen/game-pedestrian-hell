@@ -205,36 +205,32 @@ export function makeTrafficLight(): THREE.Group {
 }
 
 // ── 機車停等區（路口斑馬線前的白框格）──
-// 台灣標準樣式：白色框線＋白字「機車」，中間不填色（柏油原色）。
-// placeholder 的「不填色」= 疊一張柏油色內板露出白邊；之後換貼圖就改這個 factory。
-// 純視覺裝飾，跟斑馬線一樣不影響任何判定。
-function makeScooterBoxTexture(): THREE.Texture {
-  const canvas = document.createElement("canvas");
-  canvas.width = 256;
-  canvas.height = 128;
-  const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 72px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("機車", 128, 68);
-  return new THREE.CanvasTexture(canvas);
-}
+// 白色框線、中間不填色（柏油原色）。
+// placeholder 的「不填色」= 疊一張柏油色內板露出白邊。
+// 之後放使用者的貼圖：在 group 裡加一層 PlaneGeometry + map（y 疊 0.03），
+// 或整組換成一張貼圖平面。純視覺裝飾，不影響任何判定。
 const SCOOTER_BOX_BORDER_MAT = new THREE.MeshBasicMaterial({ color: 0xe8e8e8 });
 const SCOOTER_BOX_FILL_MAT = new THREE.MeshBasicMaterial({ color: 0x3a3a3e }); // 柏油原色＝不填色
-const SCOOTER_BOX_TEXT_MAT = new THREE.MeshBasicMaterial({
-  map: makeScooterBoxTexture(),
+
+// 使用者提供的騎士圖案（白色、透明背景）。路徑相對於網站根：
+// 本機 dev 是 /assets/...，GitHub Pages 會自動變 /game-pedestrian-hell/assets/...
+const SCOOTER_ICON_TEX = new THREE.TextureLoader().load(
+  "assets/motorcycle_waiting_symbol_transparent.png",
+);
+SCOOTER_ICON_TEX.colorSpace = THREE.SRGBColorSpace;
+const SCOOTER_ICON_MAT = new THREE.MeshBasicMaterial({
+  map: SCOOTER_ICON_TEX,
   transparent: true,
 });
+const SCOOTER_ICON_GEO = new THREE.PlaneGeometry(0.73, 1.9); // 照原圖 275:717 的比例
 
-// 平躺的三層：白框（大）→ 柏油色內板（內縮，露出白邊）→ 「機車」字。
-// 字預設朝 +Z 的人可讀；給迎面車讀的那格，由呼叫端把整組 rotation.y 轉 180 度。
+// 平躺的層：白框（大）→ 柏油色內板（內縮，露出白邊）→ 置中一個騎士圖案。
+// 圖案預設朝 +Z 的人正讀；迎面車那格由呼叫端把整組 rotation.y 轉 180 度。
 export function makeScooterBox(width: number, depth: number): THREE.Group {
   const group = new THREE.Group();
   const layers: [THREE.PlaneGeometry, THREE.MeshBasicMaterial, number][] = [
     [new THREE.PlaneGeometry(width, depth), SCOOTER_BOX_BORDER_MAT, 0.02],
     [new THREE.PlaneGeometry(width - 0.3, depth - 0.3), SCOOTER_BOX_FILL_MAT, 0.025],
-    [new THREE.PlaneGeometry(2.2, 1.1), SCOOTER_BOX_TEXT_MAT, 0.03],
   ];
   for (const [geo, mat, y] of layers) {
     const plane = new THREE.Mesh(geo, mat);
@@ -242,6 +238,11 @@ export function makeScooterBox(width: number, depth: number): THREE.Group {
     plane.position.y = y;
     group.add(plane);
   }
+  // 騎士圖案：一格一個，放在兩車道的正中間
+  const icon = new THREE.Mesh(SCOOTER_ICON_GEO, SCOOTER_ICON_MAT);
+  icon.rotation.x = -Math.PI / 2;
+  icon.position.y = 0.03;
+  group.add(icon);
   return group;
 }
 

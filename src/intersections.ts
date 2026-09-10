@@ -99,13 +99,12 @@ export class Intersections {
       group.add(light);
     }
 
-    // 機車停等區＋停止線：依台灣法規，從車的方向看是
-    // 停止線 → 機車停等區 → 斑馬線 → 路口（機車排在汽車前面等）。
-    // 迎面車從遠方(-Z)來 → 畫在遠側，停等區的字轉 180 度給它們讀；
-    // 同向車從你背後(+Z)來 → 畫在近側。
+    // 機車停等區＋停止線：從路口往外的順序是 斑馬線 → 停止線 → 停等區。
+    // 兩者都畫在橫向小路鋪面之外的主路面上（鋪面 y=0.1 會蓋掉更低的標線）。
+    // 迎面車從遠方(-Z)來 → 畫在遠側；同向車從你背後(+Z)來 → 畫在近側。
     const boxDepth = 2.4; // 停等區縱深
-    const boxZ = depth / 2 + 1.5; // 停等區中心離路口邊緣多遠（在斑馬線之外的主路面上）
-    const stopLineZ = boxZ + boxDepth / 2 + 0.7; // 停止線在停等區後方
+    const stopLineZ = depth / 2 + 0.5; // 停止線貼著路口邊緣（斑馬線和停等區之間）
+    const boxZ = stopLineZ + boxDepth / 2 + 0.5; // 停等區在停止線後方
     for (const side of [-1, 1] as const) {
       // side = -1 迎面（遠側）、+1 同向（近側）
       const left = side === -1 ? ROAD_LEFT : BG_LEFT;
