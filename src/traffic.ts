@@ -12,18 +12,17 @@ import {
   WALK_MIN_X,
   WALK_MAX_X,
   randomVehicleType,
-  type VehicleType,
   type LevelConfig,
   type DeathCause,
 } from "./tuning";
 import { aabbHit, type Size3 } from "./collision";
-import { preloadVehicleSkins, vehicleMaterial } from "./vehicleskins";
+import { preloadVehicleSkins, makeVehicleMesh } from "./vehicleskins";
 import type { Player } from "./player";
 import type { Intersections } from "./intersections";
 import type { Obstacles } from "./obstacles";
 
 interface Car {
-  mesh: THREE.Mesh;
+  mesh: THREE.Object3D; // 外觀（3D 模型或方塊，vehicleskins.ts 決定）；原點＝碰撞箱中心
   speed: number; // 想開的車速（會加在世界捲動之上）
   effSpeed: number; // 這一幀實際的車速（被前車擋住時會低於 speed）
   size: Size3;
@@ -42,22 +41,9 @@ export class Traffic {
   private spawnTimer = 0;
   private bgSpawnTimer = 0;
   private bikeTimer = 0;
-  // 每種車共用一份幾何，生成時只換材質顏色
-  private readonly geometries = new Map<VehicleType, THREE.BoxGeometry>();
-  private readonly bikeGeometry = new THREE.BoxGeometry(
-    TUNING.bike.size.x,
-    TUNING.bike.size.y,
-    TUNING.bike.size.z,
-  );
 
   constructor(private readonly scene: THREE.Scene) {
-    for (const [type, v] of Object.entries(TUNING.vehicles)) {
-      this.geometries.set(
-        type as VehicleType,
-        new THREE.BoxGeometry(v.size.x, v.size.y, v.size.z),
-      );
-    }
-    preloadVehicleSkins(); // 有貼圖就換皮，沒有就維持色塊
+    preloadVehicleSkins(); // 有 3D 模型/貼圖就換皮，沒有就維持色塊
   }
 
   // dz = 這一幀世界捲了多少
@@ -213,10 +199,7 @@ export class Traffic {
 
     const offset = (Math.random() * 2 - 1) * v.wander;
     const color = v.colors[Math.floor(Math.random() * v.colors.length)];
-    const mesh = new THREE.Mesh(
-      this.geometries.get(type)!,
-      vehicleMaterial(type, color), // 有貼圖=貼圖箱子，沒貼圖=純色（vehicleskins.ts）
-    );
+    const mesh = makeVehicleMesh(type, color); // 3D 模型→貼圖箱→色塊（vehicleskins.ts）
     // 迎面車從遠處生成；同向車從鏡頭後方開出來（會突然從你背後出現，這是設計）
     const z = dir === 1 ? -t.spawnDistance : 18;
     const baseX = colX(col) + offset;
@@ -261,10 +244,7 @@ export class Traffic {
       return;
     }
     const color = b.colors[Math.floor(Math.random() * b.colors.length)];
-    const mesh = new THREE.Mesh(
-      this.bikeGeometry,
-      vehicleMaterial("bike", color), // 腳踏車也吃同一套貼皮管線
-    );
+    const mesh = makeVehicleMesh("bike", color); // 腳踏車也吃同一套外觀管線
     mesh.position.set(baseX, b.size.y / 2, spawnZ);
     if (dir === -1) mesh.rotation.y = Math.PI;
     this.scene.add(mesh);
