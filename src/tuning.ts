@@ -29,6 +29,7 @@ export const TUNING = {
   walkSpeed: 4.2, // 按住 ↑ 的前進速度（公尺/秒）
   backSpeed: 2.6, // 按住 ↓ 的後退速度
   strafeSpeed: 5.5, // 按住 ←→ 的橫移速度（連續滑動，不吸附車道中心）
+  walkAnimBaseSpeed: 3.5, // 走路動畫的基準速度：實際移動速度÷這個＝動畫播放倍率
 
   // ── 玩家型態（難度桿之一：體積越大越難閃。測試用 1/2/3 鍵切換）──
   playerForms: {

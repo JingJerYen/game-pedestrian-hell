@@ -125,6 +125,7 @@ function pickFrom(pool: readonly string[]): string {
 
 function failLevel(cause: DeathCause): void {
   const caption = TUNING.deathCaptions[cause];
+  player.die(cause); // 被撞倒下／超時搖頭
   hearts--;
   state = "fail";
   resultAt = performance.now();
@@ -211,7 +212,7 @@ renderer.setAnimationLoop(() => {
     obstacles.update(dz, maxDistance, lv, intersections);
     traffic.update(dt, dz, obstacles, lv, intersections);
     const dirX = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
-    player.update(dt, dirX, lv.strafeSpeed ?? TUNING.strafeSpeed, obstacles);
+    player.update(dt, dirX, lv.strafeSpeed ?? TUNING.strafeSpeed, obstacles, dz);
 
     position += dz;
     maxDistance = Math.max(maxDistance, position);
@@ -268,6 +269,7 @@ renderer.setAnimationLoop(() => {
     ].join("\n");
   });
 
+  player.tick(dt); // 動畫每一幀都推進（結算畫面也要，倒下動畫才播得完）
   updateCamera(dt);
   renderer.render(world.scene, camera);
 });
