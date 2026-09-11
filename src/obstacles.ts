@@ -195,7 +195,8 @@ export class Obstacles {
           Math.random() < 0.5 ? 0 : Math.PI,
         );
       } else {
-        // 機車格：維持方塊，等二輪模型到位再換
+        // 機車格：維持方塊。車流的機車模型（motor1）上面有騎士，不能拿來當停著的車；
+        // 等有「沒人的停放機車」模型再換
         this.addBlock(
           col,
           stripX,

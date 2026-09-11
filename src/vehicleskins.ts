@@ -4,7 +4,7 @@
 // 每種車有一個「款式池」（轎車/計程車/警車…），生成時隨機抽一款，
 // 街景自動有變化。模型會等比縮放到 tuning.ts 碰撞箱的長度、貼齊地面，
 // 所以視覺跟判定永遠對得上。Kenney 模型車頭朝 +Z，跟迎面車朝向一致。
-// 還沒有模型的車種（scooter / bike）自動用純色方塊，補上 glb 就換。
+// 還沒有模型的車種（bike）自動用純色方塊，補上 glb 就換。
 
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -24,6 +24,12 @@ const MODEL_VARIANTS: Record<string, string[]> = {
     "police",
   ],
   truck: ["truck", "truck-flat", "delivery", "garbage-truck"],
+  // 機車：Tripo 生成的紅色速克達（含騎士）。只給車流用——上面有人，不能拿去當停車格的機車
+  scooter: ["motor1"],
+};
+// 車頭不是朝 +Z 的模型，載入時先繞 Y 軸轉正（弧度）。motor1 車頭朝 +X → 轉 -90°
+const MODEL_ROTATION_Y: Record<string, number> = {
+  motor1: -Math.PI / 2,
 };
 
 // 載好並「規格化」（縮放到碰撞箱、置中、貼地）的模型原型，clone 出去用
@@ -45,7 +51,15 @@ export function preloadVehicleSkins(): void {
       gltfLoader.load(
         url,
         (gltf) => {
-          const proto = normalize(gltf.scene, size);
+          const rot = MODEL_ROTATION_Y[name];
+          let scene: THREE.Object3D = gltf.scene;
+          if (rot) {
+            const turned = new THREE.Group();
+            turned.rotation.y = rot;
+            turned.add(scene);
+            scene = turned;
+          }
+          const proto = normalize(scene, size);
           let pool = modelPools.get(kind);
           if (!pool) modelPools.set(kind, (pool = []));
           pool.push(proto);
