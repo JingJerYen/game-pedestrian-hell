@@ -57,17 +57,18 @@ export class World {
     const sidewalkWidth = LW + 0.8;
     const roadZ = -ROAD_LENGTH / 2 + WRAP_Z;
 
-    this.scene.background = new THREE.Color(0x87b5d9); // 天空
-    const fog = new THREE.Fog(0x87b5d9, 60, 160); // 遠處霧化，遮住物件生成/消失
-    this.scene.fog = fog;
+    // 天空與霧的顏色由 setBackdrop 依背景圖設定（每張圖配自己的霧色）
+    this.scene.background = new THREE.Color(0x87b5d9);
+    this.scene.fog = new THREE.Fog(0x87b5d9, 60, 160); // 遠處霧化，遮住物件生成/消失
 
     // 大地面：鋪滿整個可見範圍（不捲動，看不出來在動）
     this.scene.add(makeGround(1200));
 
     // 遠景大背景圖：以鏡頭為圓心的弧面，立在霧的盡頭之外，不捲動；x 每幀跟著鏡頭（updateBackdrop）
-    this.backdrop = makeBackdrop(fog.color);
+    this.backdrop = makeBackdrop();
     this.backdrop.group.position.z = t.cameraDistance; // 圓心放在鏡頭的 z
     this.scene.add(this.backdrop.group);
+    this.setBackdrop(0);
 
     // 光：一盞環境半球光 + 一盞太陽平行光
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x666677, 1.1));
@@ -202,6 +203,17 @@ export class World {
         mark.position.z = WRAP_Z - Math.random() * ROAD_LENGTH;
       }
     });
+  }
+
+  // 換背景（每關開始時呼叫）：第 index 張（超出就輪回去），連天空和霧的顏色一起換
+  setBackdrop(index: number): void {
+    const sets = TUNING.backdrop.sets;
+    if (!sets.length) return;
+    const set = sets[((index % sets.length) + sets.length) % sets.length];
+    const sky = new THREE.Color(set.sky);
+    (this.scene.background as THREE.Color).copy(sky);
+    (this.scene.fog as THREE.Fog).color.copy(sky);
+    this.backdrop.show(set.image, sky);
   }
 
   // 每幀在鏡頭定位之後呼叫：背景圖跟著鏡頭橫移一部分（follow=1 就像貼在螢幕上）

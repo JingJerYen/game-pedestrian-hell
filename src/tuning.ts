@@ -25,14 +25,21 @@ export const TUNING = {
   centerGap: 0.5, // 雙黃線區的寬度（原本的分隔島拆掉了）
   buildingGap: 0.2, // 建築物離人行道外緣多遠（調 0 就是騎樓直接貼著人行道）
 
-  // ── 遠景大背景圖（立在馬路盡頭的一面大看板；圖放 public/assets/，沒有檔就只有純色天空）──
+  // ── 遠景大背景圖（以鏡頭為圓心的弧形大看板；圖放 public/assets/，載不到就純色天空）──
   backdrop: {
-    image: "assets/backdrop.jpg", // 檔名（相對 public/）。目前是台北 101 天際線（1448×1086）
-    distance: 190, // 立在前方多遠：要比霧的盡頭（160）遠、比鏡頭能看的最遠（300）近
+    // 輪換清單：每關換下一張（無限模式一路輪下去），關卡表可用 backdrop 欄位指定第幾張。
+    // sky = 天空與霧的顏色，要配合那張圖地平線附近的霧色，接縫才看不出來（日落就配橘）。
+    // 圖的規格見 public/assets/backdrops.md。
+    sets: [
+      { image: "assets/backdrop.jpg", sky: 0x87b5d9 }, // 台北 101 天際線
+      // { image: "assets/backdrop-kaohsiung.jpg", sky: 0x9fc3dc }, // 高雄 85 大樓
+      // { image: "assets/backdrop-sunset.jpg", sky: 0xe6a97c }, // 日落
+    ],
+    distance: 190, // 弧面半徑：要比霧的盡頭（160）遠、比鏡頭能看的最遠（300）近
     height: 380, // 圖在世界裡的高度（公尺），正前方的寬度依圖片比例自動算。380 剛好鋪滿橫式 16:9 的畫面寬
-    arcDegrees: 170, // 背景是以鏡頭為圓心的弧面，弧長幾度：超出圖片寬度的部分用鏡射延伸（路口斜看出去才不會看穿）
-    horizonRatio: 0.17, // 圖片的地平線在高度的幾成處（從下緣算起）：101 這張是市區樓群的底部
-    fadeHeight: 18, // 地平線往上這段高度漸漸融進霧色（蓋掉近處樓群的底部，101 和山留著）
+    arcDegrees: 170, // 弧長幾度：超出圖片寬度的部分用鏡射延伸（路口斜看出去才不會看穿）
+    horizonRatio: 0.17, // 圖片的地平線在高度的幾成處（從下緣算起），所有圖都照這個規格出
+    fadeHeight: 18, // 地平線往上這段高度漸漸融進霧色（蓋掉近處樓群的底部，天際線留著）
     follow: 0.85, // 鏡頭橫移時背景跟多少：1 = 像貼在螢幕上不動、0 = 固定在世界裡（視差最大）
   },
 
@@ -311,6 +318,8 @@ export interface LevelConfig {
   destinationLabel?: string; // 目的地建築的招牌字（之後換貼皮）
   // ↓ 可選：關卡風味小語（如「趕著打卡」），顯示在開場橫幅；不填就不顯示
   flavorText?: string;
+  // ↓ 可選：這關用 TUNING.backdrop.sets 的第幾張背景（0 起算）；不填就依關數輪換
+  backdrop?: number;
   // ↓ 可選：提示開關。目的地建築照樣會出現，只是不告訴玩家在哪/多遠——讓他自己找
   hideSideHint?: boolean; // true = 不提示終點在左/右側（橫幅、HUD、「到了！」提示都不出現）
   hideDistanceHint?: boolean; // true = 不顯示目標距離（HUD 只顯示已走公尺數）

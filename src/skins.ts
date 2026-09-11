@@ -285,11 +285,12 @@ export function makeStopLine(width: number): THREE.Mesh {
 // 以鏡頭為圓心的一段圓柱弧面（不是平的看板，路口斜看出去也有圖），不受霧影響。
 // 圖片本身鋪在正前方（寬度 = height × 圖片比例），弧面其餘部分用鏡射延伸。
 // 下半部疊一層「霧色 → 透明」的漸層，讓圖從地平線附近自然融進霧裡。
-// 圖載好才顯示；載不到就維持純色天空。
+// 可以換圖（每關輪換）：貼圖載一次就快取。圖載好才顯示；載不到就維持純色天空。
 export interface Backdrop {
   group: THREE.Group; // world.ts 擺位置；x 每幀跟著鏡頭走一部分
+  show(image: string, sky: THREE.Color): void; // 換成這張圖、漸層改成這個霧色
 }
-export function makeBackdrop(fogColor: THREE.Color): Backdrop {
+export function makeBackdrop(): Backdrop {
   const c = TUNING.backdrop;
   const group = new THREE.Group();
   group.visible = false;
@@ -297,60 +298,76 @@ export function makeBackdrop(fogColor: THREE.Color): Backdrop {
   // 弧面正中央對著 -Z（鏡頭前方）；從內側看，材質用 BackSide
   const arcGeo = (radius: number) =>
     new THREE.CylinderGeometry(radius, radius, c.height, 96, 1, true, Math.PI - arc / 2, arc);
-  new THREE.TextureLoader().load(
-    `${import.meta.env.BASE_URL}${c.image}`,
-    (tex) => {
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.wrapS = THREE.MirroredRepeatWrapping;
-      const img = tex.image as { width: number; height: number };
-      const w = c.height * (img.width / img.height); // 圖片在正前方鋪多寬
-      const imgArc = 2 * Math.atan(w / 2 / c.distance); // 這個寬度在弧面上占幾度
-      const repeat = arc / imgArc; // 整段弧面要塞幾張圖（>1 的部分鏡射）
-      // 圓柱的 u 從右往左增加，從內側看圖會左右相反：repeat 取負把它翻回來，offset 讓圖置中
-      tex.repeat.x = -repeat;
-      tex.offset.x = 0.5 + repeat / 2;
-      const picture = new THREE.Mesh(
-        arcGeo(c.distance),
-        new THREE.MeshBasicMaterial({ map: tex, fog: false, side: THREE.BackSide }),
-      );
-      // 圖的地平線（高度的 horizonRatio 處）對齊 y=0
-      const centerY = c.height * (0.5 - c.horizonRatio);
-      picture.position.y = centerY;
-      group.add(picture);
+  const centerY = c.height * (0.5 - c.horizonRatio); // 圖的地平線對齊 y=0
 
-      // 霧色漸層：地平線以下全是霧色，往上 fadeHeight 內漸漸透明
-      const canvas = document.createElement("canvas");
-      canvas.width = 4;
-      canvas.height = 512;
-      const ctx = canvas.getContext("2d")!;
-      const rgb = `${Math.round(fogColor.r * 255)},${Math.round(fogColor.g * 255)},${Math.round(fogColor.b * 255)}`;
-      const horizonRow = (1 - c.horizonRatio) * 512; // canvas 的 y 從上往下
-      const fadeRows = (c.fadeHeight / c.height) * 512;
-      const grad = ctx.createLinearGradient(0, horizonRow - fadeRows, 0, horizonRow);
-      grad.addColorStop(0, `rgba(${rgb},0)`);
-      grad.addColorStop(1, `rgba(${rgb},1)`);
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, 4, horizonRow);
-      ctx.fillStyle = `rgb(${rgb})`;
-      ctx.fillRect(0, horizonRow, 4, 512 - horizonRow);
-      const fade = new THREE.Mesh(
-        arcGeo(c.distance - 1), // 疊在圖前面一點點
-        new THREE.MeshBasicMaterial({
-          map: new THREE.CanvasTexture(canvas),
-          transparent: true,
-          fog: false,
-          depthWrite: false,
-          side: THREE.BackSide,
-        }),
+  const pictureMat = new THREE.MeshBasicMaterial({ fog: false, side: THREE.BackSide });
+  const picture = new THREE.Mesh(arcGeo(c.distance), pictureMat);
+  picture.position.y = centerY;
+  group.add(picture);
+
+  // 霧色漸層：畫成白色＋透明度，實際顏色用材質 color 染（換霧色不用重畫）
+  const canvas = document.createElement("canvas");
+  canvas.width = 4;
+  canvas.height = 512;
+  const ctx = canvas.getContext("2d")!;
+  const horizonRow = (1 - c.horizonRatio) * 512; // canvas 的 y 從上往下
+  const fadeRows = (c.fadeHeight / c.height) * 512;
+  const grad = ctx.createLinearGradient(0, horizonRow - fadeRows, 0, horizonRow);
+  grad.addColorStop(0, "rgba(255,255,255,0)");
+  grad.addColorStop(1, "rgba(255,255,255,1)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 4, horizonRow);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, horizonRow, 4, 512 - horizonRow);
+  const fadeMat = new THREE.MeshBasicMaterial({
+    map: new THREE.CanvasTexture(canvas),
+    transparent: true,
+    fog: false,
+    depthWrite: false,
+    side: THREE.BackSide,
+  });
+  const fade = new THREE.Mesh(arcGeo(c.distance - 1), fadeMat); // 疊在圖前面一點點
+  fade.position.y = centerY;
+  group.add(fade);
+
+  const loader = new THREE.TextureLoader();
+  const cache = new Map<string, THREE.Texture>();
+  let wanted = ""; // 最後一次要求顯示的圖（載入是非同步的，載好時要確認還是它）
+  const apply = (tex: THREE.Texture) => {
+    pictureMat.map = tex;
+    pictureMat.needsUpdate = true;
+    group.visible = true;
+  };
+  return {
+    group,
+    show(image, sky) {
+      fadeMat.color.copy(sky);
+      wanted = image;
+      const cached = cache.get(image);
+      if (cached) {
+        apply(cached);
+        return;
+      }
+      loader.load(
+        `${import.meta.env.BASE_URL}${image}`,
+        (tex) => {
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.wrapS = THREE.MirroredRepeatWrapping;
+          const img = tex.image as { width: number; height: number };
+          const w = c.height * (img.width / img.height); // 圖片在正前方鋪多寬
+          const imgArc = 2 * Math.atan(w / 2 / c.distance); // 這個寬度在弧面上占幾度
+          const repeat = arc / imgArc; // 整段弧面要塞幾張圖（>1 的部分鏡射）
+          // 圓柱的 u 從右往左增加，從內側看圖會左右相反：repeat 取負把它翻回來，offset 讓圖置中
+          tex.repeat.x = -repeat;
+          tex.offset.x = 0.5 + repeat / 2;
+          cache.set(image, tex);
+          if (wanted === image) apply(tex);
+        },
+        undefined,
+        () => console.info(`沒有背景圖 ${image}，維持純色天空`),
       );
-      fade.position.y = centerY;
-      group.add(fade);
-      group.visible = true;
     },
-    undefined,
-    () => console.info(`沒有背景圖 ${c.image}，維持純色天空`),
-  );
-  return { group };
+  };
 }
 
 // ── 大地面 ──

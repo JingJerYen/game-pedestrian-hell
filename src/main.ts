@@ -95,6 +95,7 @@ function startLevel(index: number): void {
   intersections.reset();
   destination.reset();
   world.resetSidewalkMarks();
+  world.setBackdrop(lv.backdrop ?? index); // 背景每關輪換（關卡表可指定）
   hud.hideOverlays();
   // 目標提示依關卡設定組合：側別/距離都可以個別關掉（讓玩家自己找目的地）
   const showSide = !!lv.goalSide && !lv.hideSideHint;
