@@ -84,7 +84,11 @@ export const TUNING = {
       speedMax: 16,
       weight: 0.35,
       wander: 0.7,
-      colors: [0x333338, 0xd94f8a, 0x4fa3d9, 0xf2f2f2],
+      // 車身顏色：motor1 模型載入時把貼圖上的紅色車身換成這些色（vehicleskins.ts 換色）
+      colors: [0xd23b3b, 0x333338, 0xf2f2f2, 0x8a8f96], // 紅、黑、白、銀
+      // 騎士衣服顏色：貼圖上的藍色衣服換成這些
+      riderColors: [0x2f6fb5, 0x333338, 0xe8e8e8, 0x7a4b9c, 0x3f8f5a, 0xc9752c, 0x8f6b4e],
+      recolorVariants: 8, // 一次生出幾款配色（車身依序輪、衣服隨機配）
     },
     car: {
       size: { x: 1.9, y: 1.4, z: 4.2 },
