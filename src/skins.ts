@@ -292,6 +292,24 @@ const BUILDING_MODELS: string[] = [
 ];
 const buildingProtos: THREE.Object3D[] = [];
 let buildingLoadStarted = false;
+const BUILDING_FOOTPRINT_HEIGHT = 2.5; // 對齊人行道時只看離地這麼高以內的牆面輪廓
+
+// 只算高度 maxY 以下的頂點的包圍框（世界空間依 model 目前的旋轉）
+function footprintBox(model: THREE.Object3D, maxY: number): THREE.Box3 {
+  model.updateWorldMatrix(true, true);
+  const box = new THREE.Box3();
+  const v = new THREE.Vector3();
+  model.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const pos = mesh.geometry.getAttribute("position");
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+      if (v.y <= maxY) box.expandByPoint(v);
+    }
+  });
+  return box.isEmpty() ? new THREE.Box3().setFromObject(model) : box;
+}
 
 export function preloadBuildingModels(): void {
   if (buildingLoadStarted) return;
@@ -341,16 +359,18 @@ export function restyleBuilding(b: BuildingParts, facing: 1 | -1): number {
     const model = proto.clone(); // 幾何與材質共用，clone 很便宜
     model.rotation.y = facing === 1 ? Math.PI / 2 : -Math.PI / 2; // +Z 正面轉向馬路
     model.position.set(0, 0, 0);
-    const bb = new THREE.Box3().setFromObject(model);
+    const full = new THREE.Box3().setFromObject(model);
+    // 對齊用的輪廓只看「低處」：招牌、雨遮、陽台會凸出牆面，用整體包圍框會把房子往後推
+    const foot = footprintBox(model, full.min.y + BUILDING_FOOTPRINT_HEIGHT);
     // 正面貼齊 root 原點（x=0）、底貼地、面寬置中
     model.position.set(
-      facing === 1 ? -bb.max.x : -bb.min.x,
-      -bb.min.y,
-      -(bb.min.z + bb.max.z) / 2,
+      facing === 1 ? -foot.max.x : -foot.min.x,
+      -full.min.y,
+      -(foot.min.z + foot.max.z) / 2,
     );
     b.root.add(model);
     b.model = model;
-    return bb.max.z - bb.min.z;
+    return foot.max.z - foot.min.z;
   }
   // fallback：隨機面寬/樓層/深度的色塊
   const c = TUNING.buildings;
