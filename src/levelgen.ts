@@ -58,7 +58,6 @@ function generate(index: number): LevelConfig {
     roll < w.walker ? "walker" : roll < w.walker + w.stroller ? "stroller" : "wheelchair";
 
   const dest = e.destinations[Math.floor(rng() * e.destinations.length)];
-  const dirRoll = rng();
 
   return {
     goalDistance,
@@ -74,7 +73,6 @@ function generate(index: number): LevelConfig {
     obstacleRoadChance: lerp(e.roadChanceStart, e.roadChanceEnd),
     turnChance: lerp(TUNING.intersection.turnChance, e.turnChanceEnd),
     bikeInterval: lerp(e.bikeIntervalStart, e.bikeIntervalEnd) * jitter(0.15),
-    bikeDirs: dirRoll < 0.5 ? "both" : dirRoll < 0.75 ? "toward" : "away",
     goalSide: rng() < 0.5 ? "left" : "right",
     destinationLabel: dest.label,
     flavorText: depth === 1 ? e.entryFlavor : dest.flavor,

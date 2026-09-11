@@ -3,10 +3,10 @@
 export const TUNING = {
   // ── 鏡頭（第三人稱、馬力歐賽車式低視角）──
   cameraHeight: 2.4, // 鏡頭離地高度
-  cameraDistance: 5.0, // 鏡頭在玩家後方多遠
+  cameraDistance: 6.0, // 鏡頭在玩家後方多遠
   cameraFov: 70, // 視野角度（越大越有速度感，也越魚眼）
   cameraLookAhead: 14, // 鏡頭看向玩家前方多遠的地面
-  cameraXFollow: 0.6, // 橫移時鏡頭跟過去的比例（0=固定不動、1=完全跟隨）
+  cameraXFollow: 1.0, // 橫移時鏡頭跟過去的比例（0=固定不動、1=完全跟隨）
   cameraXDamp: 4, // 鏡頭橫向跟隨的平滑度（越大跟越緊）
 
   // ── 直式畫面（手機豎拿）鏡頭覆寫：畫面比例 < 1 時自動採用 ──
@@ -73,20 +73,36 @@ export const TUNING = {
   bgSpawnInterval: 1.6, // 對向（背景）車的生成間隔
   followDistance: 7, // 跟車：與同車道前車的間隙小於這個就減速跟著開（不超車、不穿模）
   followXRange: 1.4, // 「同車道」判定：橫向差距在這以內算同一條線上
+  avoidLookAhead: 16, // 同向車前方這麼遠有違停就往內側車道繞
+  spawnClearZ: 10, // 生成點前後這段距離內該車道已經有車就不生（避免生在別人身上）
 
-  // ── 人行道腳踏車（慢速但撞到也是死；出現頻率/方向由關卡表 bike* 欄位控制）──
+  // ── 人行道腳踏車（慢速但撞到也是死；出現頻率由關卡表 bikeInterval 控制）──
+  // 方向永遠跟該側車流同向：左人行道的腳踏車迎面騎來、右人行道的從你背後來。
+  // 遇到人行道路障就切到路邊車道、過了再切回來；在車道上跟汽車一樣排隊（跟車不超車），
+  // 不會和車或路障穿模。
   bike: {
     size: { x: 0.6, y: 1.5, z: 1.8 },
     speedMin: 2.5, // 比行人快一點點的悠哉速度
     speedMax: 4.5,
     wander: 0.8, // 在人行道上偏來偏去的幅度
     colors: [0x2e7d5b, 0x8a4baf, 0xc2564b, 0x4a6fa5],
-  },
-  // 腳踏車讓車（防止和汽車穿模）：
-  bikeYield: {
-    laneClearRange: 22, // 要繞下馬路前，目標車道前後這段距離內有車就先煞停等空檔
-    turnerRange: 11, // 這距離內有車正在路口轉彎，腳踏車就煞停讓它過
-    commitDist: 0.3, // 已經繞出去超過這個距離就不回頭（避免在車道中間猶豫）
+    mergeLook: 8, // 人行道前方這麼近有路障就切到路邊車道
+    returnLook: 12, // 在車道上時，人行道前方這麼遠都乾淨才切回去（要比 mergeLook 大，才不會來回抖）
+    stopGap: 2.5, // 切不出去（車道有車或違停）時，離路障這麼近就煞停等
+    sideMargin: 0.2, // 判斷路障擋不擋時，腳踏車兩側多留的餘裕
+    laneChangeDamp: 3, // 切換車道的平滑度（越大切越快）
+    // 切進車道前的空檔判斷：後方這段距離內有「比我快、正在接近」的車就先等它過。
+    // 已經停著或比我慢的車不算——切進去之後它會乖乖排在腳踏車後面（跟車邏輯）
+    mergeClearBehind: 14,
+    // 同一側「人行道路障 ↔ 違停」之間至少留這麼多空隙（公尺），腳踏車才換得了道；
+    // 不夠的話會繞出去回不來，卡在車道上把後面的車全塞住（obstacles.ts 生成時保證）
+    passGap: 8,
+    // 路口：右轉車會掃過人行道延伸段。掃過範圍 = 路口中心往前 sweepLen 公尺。
+    // 範圍內有腳踏車 → 右轉車在路口停著等它過；範圍前 yieldDist 公尺內的腳踏車
+    // 看到 turnerRange 內有右轉車接近 → 停下讓車。兩邊互相等，誰都不會輾過誰。
+    sweepLen: 13,
+    yieldDist: 6,
+    turnerRange: 11,
   },
 
   // ── 公車停靠區（外側車道貼路邊線的長方形標線，裝飾）──
@@ -98,7 +114,7 @@ export const TUNING = {
 
   // ── 路面標記（「慢」「50」：成對出現在同一側兩條車道、字向跟著車行方向）──
   roadMarkPairs: 2, // 同時存在幾組（一組 = 一側的每條車道各一個字）
-  roadMarkLabels: ["慢", "50"], // 標記種類（隨機挑），外觀在 skins.ts 的 makeRoadMark
+  roadMarkLabels: ["慢", "50", "40"], // 標記種類（隨機挑），外觀在 skins.ts 的 makeRoadMark
   sidewalkMarkCount: 2, // 人行道上同時存在幾個直排「人行道」字（裝飾）
 
   // ── 死亡／過關字幕（後台自由編輯）──
@@ -142,6 +158,8 @@ export const TUNING = {
   // ── 靜止路障（擋路不致死；「多密、多常違停」由下面的關卡表決定）──
   sidewalkObstacleSize: { x: 2.2, y: 1.3, z: 2.8 }, // 人行道路障（機車堆、攤販…）
   obstacleSpawnZ: 96, // 路障生成在前方多遠（比車生成點再遠一點，避免疊到車）
+  // 生成點附近有車（同向車、腳踏車）就先不生：橫向/縱向各多看這麼多餘裕
+  obstacleSpawnMargin: { x: 0.6, z: 3 },
 
   // ── 停車格路段（人行道「靠馬路那半邊」直接換成停車格鋪面接手，
   //    靠建築那半邊仍是綠色走道；格子裡可能停著車）──
@@ -259,8 +277,8 @@ export interface LevelConfig {
   speedScaleLeft?: number;
   speedScaleRight?: number;
   // ↓ 可選：人行道腳踏車。沒寫 bikeInterval 這關就沒有腳踏車。
+  //   方向固定跟該側車流同向（左側迎面騎來、右側從背後來），行為參數在 TUNING.bike。
   bikeInterval?: number; // 每隔幾秒生成一台（左右人行道隨機）
-  bikeDirs?: "both" | "toward" | "away"; // 迎面 / 從背後來 / 兩個方向（預設 both）
   // ↓ 可選：過關地點。指定後，走到 goalDistance 還要「站上該側人行道」才過關，
   //   時間照跑。終點會出現一棟目的地建築（外觀在 skins.ts 的 makeDestinationBuilding）。
   goalSide?: "left" | "right";
@@ -283,7 +301,6 @@ export const LEVELS: LevelConfig[] = [
     obstacleGapMax: 5,
     obstacleRoadChance: 0.1,
     bikeInterval: 5, // 這關開始人行道有腳踏車
-    bikeDirs: "both", // 腳踏車雙向夾擊
     goalSide: "right",
     destinationLabel: "公司",
     flavorText: "趕著打卡",
@@ -298,8 +315,7 @@ export const LEVELS: LevelConfig[] = [
     obstacleGapMin: 10,
     obstacleGapMax: 20,
     obstacleRoadChance: 0.3,
-    bikeInterval: 5, // 這關開始人行道有腳踏車
-    bikeDirs: "toward",
+    bikeInterval: 5,
     goalSide: "left",
     destinationLabel: "托嬰中心",
     flavorText: "寶寶快遲到了",
@@ -314,7 +330,6 @@ export const LEVELS: LevelConfig[] = [
     obstacleGapMax: 18,
     obstacleRoadChance: 0.35,
     bikeInterval: 3.5,
-    bikeDirs: "both", // 腳踏車雙向夾擊
     goalSide: "right",
     destinationLabel: "醫院",
     flavorText: "回診快來不及了",

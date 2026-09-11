@@ -209,7 +209,9 @@ renderer.setAnimationLoop(() => {
     );
     destination.update(dz, position, lv);
     world.update(dz, intersections.centers(), destination.zone, obstacles.parkingZones());
-    obstacles.update(dz, maxDistance, lv, intersections);
+    obstacles.update(dz, maxDistance, lv, intersections, (x0, x1, z0, z1) =>
+      traffic.anyVehicleIn(x0, x1, z0, z1),
+    ); // 生成點有車就不生（不然路障會砸在車上）
     traffic.update(dt, dz, obstacles, lv, intersections);
     const dirX = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
     player.update(dt, dirX, lv.strafeSpeed ?? TUNING.strafeSpeed, obstacles, dz);
@@ -255,7 +257,7 @@ renderer.setAnimationLoop(() => {
   }
   hud.setStatus(hearts, TUNING.maxHearts, levelIndex, progressText, timeLeft);
   debug.update(dt, () => {
-    const c = traffic.counts();
+    const c = traffic.counts(obstacles);
     return [
       `state ${state}`,
       `level ${levelIndex + 1} (${lv.playerForm})` +
@@ -265,7 +267,7 @@ renderer.setAnimationLoop(() => {
       `pos ${position.toFixed(1)} / max ${maxDistance.toFixed(1)} / goal ${lv.goalDistance}`,
       `time ${timeLeft.toFixed(1)}s`,
       `spawnInterval ${lv.spawnInterval}s  speedScale ${lv.speedScale}`,
-      `cars ${c.total} (turning ${c.turning})  obstacles ${obstacles.count}  intersections ${intersections.count}`,
+      `cars ${c.total} (turning ${c.turning})  bikes ${c.bikes} (in lane ${c.bikesInLane}, stopped ${c.bikesStopped}, clipping ${c.bikeClips})  obstacles ${obstacles.count}  intersections ${intersections.count}`,
     ].join("\n");
   });
 

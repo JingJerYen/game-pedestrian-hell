@@ -14,7 +14,7 @@ import { aabbHit, type Size3 } from "./collision";
 import type { Intersections } from "./intersections";
 import { makeParkingPavement } from "./skins";
 import { makeVehicleMesh } from "./vehicleskins";
-import { ROAD_LEFT, BG_RIGHT } from "./tuning";
+import { ROAD_LEFT, BG_RIGHT, WALK_MIN_X, WALK_MAX_X } from "./tuning";
 
 interface Obstacle {
   mesh: THREE.Object3D; // 外觀（3D 模型或方塊）；原點＝碰撞箱中心
@@ -39,12 +39,15 @@ export class Obstacles {
 
   constructor(private readonly scene: THREE.Scene) {}
 
-  // dz = 這一幀世界捲了多少；maxDist = 本關最遠走到幾公尺（用它排程生成）
+  // dz = 這一幀世界捲了多少；maxDist = 本關最遠走到幾公尺（用它排程生成）；
+  // occupied(x0, x1, z0, z1) = 這塊區域現在有沒有車（main 接到 traffic）——
+  // 有的話這次不生，過一公尺再試，不然路障會直接砸在車或腳踏車身上
   update(
     dz: number,
     maxDist: number,
     level: LevelConfig,
     intersections: Intersections,
+    occupied: (x0: number, x1: number, z0: number, z1: number) => boolean,
   ): void {
     for (let i = this.list.length - 1; i >= 0; i--) {
       const o = this.list[i];
@@ -68,45 +71,98 @@ export class Obstacles {
         this.nextSpawnAt = maxDist + 5;
         return;
       }
-      const extraGap = this.spawn(level);
+      const r = this.spawn(level, occupied);
+      if (!r.ok) {
+        this.nextSpawnAt = maxDist + r.retryAfter; // 生成點有車 / 空隙不夠：等一下再試
+        return;
+      }
       this.nextSpawnAt =
         maxDist +
-        extraGap +
+        r.extraGap +
         THREE.MathUtils.lerp(level.obstacleGapMin, level.obstacleGapMax, Math.random());
     }
   }
 
-  // 回傳這次生成額外吃掉的縱深（停車格路段比較長，下一個路障要多讓開一點）
-  private spawn(level: LevelConfig): number {
+  // ok = 生成了，extraGap = 這次額外吃掉的縱深（停車格路段比較長，下一個路障要多讓開一點）；
+  // 不 ok = 什麼都沒生，retryAfter = 再走幾公尺後重試
+  private spawn(
+    level: LevelConfig,
+    occupied: (x0: number, x1: number, z0: number, z1: number) => boolean,
+  ): { ok: true; extraGap: number } | { ok: false; retryAfter: number } {
     const t = TUNING;
+    const z = -t.obstacleSpawnZ;
     if (Math.random() < level.obstacleRoadChance) {
       // 違停車：左右兩側靠人行道的路邊車道，車頭順著該側車流方向
       const col = Math.random() < 0.5 ? 1 : LAST_ROAD_COL;
-      this.addParkedCar(
-        col,
-        colX(col),
-        -t.obstacleSpawnZ,
-        t.vehicles.car.size,
-        col === 1 ? 0 : Math.PI,
-      );
-      return 0;
+      const halfLen = t.vehicles.car.size.z / 2;
+      const blocked = this.canPlace(col, halfLen, occupied);
+      if (blocked) return blocked;
+      this.addParkedCar(col, colX(col), z, t.vehicles.car.size, col === 1 ? 0 : Math.PI);
+      return { ok: true, extraGap: 0 };
     }
     // 人行道：單顆路障，或整段停車格路段（半邊換成停車格鋪面）
     const col = Math.random() < 0.5 ? 0 : RIGHT_SIDEWALK_COL;
-    if (Math.random() < t.parking.chance) return this.spawnParking(col);
+    if (Math.random() < t.parking.chance) return this.spawnParking(col, occupied);
+    const halfLen = t.sidewalkObstacleSize.z / 2;
+    const blocked = this.canPlace(col, halfLen, occupied);
+    if (blocked) return blocked;
     this.addBlock(
       col,
       colX(col),
-      -t.obstacleSpawnZ,
+      z,
       t.sidewalkObstacleSize,
       SIDEWALK_COLORS[Math.floor(Math.random() * SIDEWALK_COLORS.length)],
     );
-    return 0;
+    return { ok: true, extraGap: 0 };
+  }
+
+  // 這一欄、以生成點為中心 ±halfLen 的路障現在能不能放：
+  // 有車在那 → 過 1 公尺再試；跟上一個路障是同側的「人行道 ↔ 違停」組合而空隙不夠
+  // → 等到空隙夠再試。可以放就回傳 null
+  private canPlace(
+    col: number,
+    halfLen: number,
+    occupied: (x0: number, x1: number, z0: number, z1: number) => boolean,
+  ): { ok: false; retryAfter: number } | null {
+    const z = -TUNING.obstacleSpawnZ;
+    if (this.colOccupied(col, z, halfLen, occupied)) return { ok: false, retryAfter: 1 };
+    // 跟現存路障的關係：同一欄不能疊在一起；同一側「人行道 ↔ 違停」要留 passGap
+    // （停車格路段很長，以中心點生成時前半段會伸進上一個路障的位置，所以要逐一檢查）
+    const isSidewalk = (c: number) => c === 0 || c === RIGHT_SIDEWALK_COL;
+    let need = 0;
+    for (const o of this.list) {
+      const sameSide = (o.col <= 1) === (col <= 1);
+      if (!sameSide) continue;
+      const gap = o.mesh.position.z - o.size.z / 2 - (z + halfLen);
+      const want =
+        o.col === col ? 0.5 : isSidewalk(o.col) !== isSidewalk(col) ? TUNING.bike.passGap : 0;
+      need = Math.max(need, want - gap);
+    }
+    return need > 0 ? { ok: false, retryAfter: need } : null;
+  }
+
+  // 這一欄、z 前後 halfLen（外加餘裕）的範圍內有沒有車
+  private colOccupied(
+    col: number,
+    z: number,
+    halfLen: number,
+    occupied: (x0: number, x1: number, z0: number, z1: number) => boolean,
+  ): boolean {
+    const half = TUNING.laneWidth / 2;
+    let x0: number, x1: number;
+    if (col === 0) [x0, x1] = [WALK_MIN_X, ROAD_LEFT];
+    else if (col === RIGHT_SIDEWALK_COL) [x0, x1] = [BG_RIGHT, WALK_MAX_X];
+    else [x0, x1] = [colX(col) - half, colX(col) + half];
+    const m = TUNING.obstacleSpawnMargin;
+    return occupied(x0 - m.x, x1 + m.x, z - halfLen - m.z, z + halfLen + m.z);
   }
 
   // 停車格路段：人行道「靠馬路那半邊」換成停車格條（機車格瘦窄／汽車格長條），
   // 剩下靠建築那邊仍是走道。每一格獨立擲骰決定有沒有停車，車輛貼齊格子。
-  private spawnParking(col: number): number {
+  private spawnParking(
+    col: number,
+    occupied: (x0: number, x1: number, z0: number, z1: number) => boolean,
+  ): { ok: true; extraGap: number } | { ok: false; retryAfter: number } {
     const t = TUNING;
     const kind: "scooter" | "car" =
       Math.random() < t.parking.carChance ? "car" : "scooter";
@@ -115,6 +171,8 @@ export class Obstacles {
       p.stallsMin + Math.floor(Math.random() * (p.stallsMax - p.stallsMin + 1));
     const len = stalls * p.stallDepth;
     const centerZ = -t.obstacleSpawnZ;
+    const blocked = this.canPlace(col, len / 2, occupied);
+    if (blocked) return blocked;
     // 停車格條貼齊人行道靠馬路的內緣
     const stripX =
       col === 0 ? ROAD_LEFT - p.stripWidth / 2 : BG_RIGHT + p.stripWidth / 2;
@@ -147,7 +205,7 @@ export class Obstacles {
         );
       }
     }
-    return len / 2;
+    return { ok: true, extraGap: len / 2 };
   }
 
   // 停放的汽車：走跟車流同一套外觀管線（Kenney 模型，缺模型退回色塊）
@@ -225,13 +283,21 @@ export class Obstacles {
     return dz;
   }
 
-  // 車輛避讓用：這條 x 附近、「行進方向」前方 range 公尺內有沒有路障。
-  // travelDir：+1 = 往 +Z 開（迎面車/迎面腳踏車）、-1 = 往 -Z 開（同向）。
+  // 車輛避讓用：x 這條線上、「行進方向」前方 range 公尺內有沒有路障。
+  // halfWidth = 來問的那台車的半寬（含餘裕）：橫向要「兩個半寬加起來」以內才算擋到，
+  // 腳踏車偏到人行道邊緣時才不會漏判、直接騎進停車格。
+  // travelDir：+1 = 往 +Z 開（迎面車/左側腳踏車）、-1 = 往 -Z 開（同向）。
   // 把路障當成一段區間看：要「完全超過尾端＋2 公尺餘裕」才算過了——
   // 不然繞到一半就切回來，會從長路障（機車停車格）的後半段穿過去。
-  hasObstacleAhead(x: number, z: number, range: number, travelDir: 1 | -1): boolean {
+  hasObstacleAhead(
+    x: number,
+    halfWidth: number,
+    z: number,
+    range: number,
+    travelDir: 1 | -1,
+  ): boolean {
     return this.list.some((o) => {
-      if (Math.abs(o.mesh.position.x - x) >= 1.2) return false;
+      if (Math.abs(o.mesh.position.x - x) >= halfWidth + o.size.x / 2) return false;
       const centerAhead = (o.mesh.position.z - z) * travelDir;
       const half = o.size.z / 2;
       return centerAhead + half > -2 && centerAhead - half < range;
