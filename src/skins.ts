@@ -42,13 +42,12 @@ export function sidewalkMaterial(): THREE.Material {
   return SIDEWALK_MAT;
 }
 
-// 人行道上的直排「人行道」白字＋台灣人行道標線的行人小人 logo（裝飾）。
+// 人行道上的直排「人行道」白字（裝飾）。
 // 字頂朝 -Z（玩家前方），從玩家視角由上往下讀「人／行／道」，方向才是對的。
-// 之後有正式 logo 素材，換掉這段 canvas 繪圖即可。
 function makeSidewalkMarkTexture(): THREE.Texture {
   const canvas = document.createElement("canvas");
   canvas.width = 160;
-  canvas.height = 640;
+  canvas.height = 470;
   const ctx = canvas.getContext("2d")!;
   ctx.fillStyle = "#ffffff";
   ctx.font = "bold 140px sans-serif";
@@ -57,29 +56,10 @@ function makeSidewalkMarkTexture(): THREE.Texture {
   ["人", "行", "道"].forEach((ch, i) => {
     ctx.fillText(ch, 80, 90 + i * 150);
   });
-  // 行人小人（走路姿勢）：頭＋身體＋前後腳＋手臂
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 16;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.arc(80, 495, 26, 0, Math.PI * 2); // 頭
-  ctx.fillStyle = "#ffffff";
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(80, 522);
-  ctx.lineTo(74, 572); // 身體
-  ctx.moveTo(74, 572);
-  ctx.lineTo(44, 622); // 前腳
-  ctx.moveTo(74, 572);
-  ctx.lineTo(108, 616); // 後腳
-  ctx.moveTo(78, 534);
-  ctx.lineTo(112, 562); // 前手
-  ctx.moveTo(78, 534);
-  ctx.lineTo(46, 556); // 後手
-  ctx.stroke();
   return new THREE.CanvasTexture(canvas);
 }
-const SIDEWALK_MARK_GEO = new THREE.PlaneGeometry(2.3, 9.2);
+export const SIDEWALK_MARK_LENGTH = 6.75; // 字的縱向長度（world.ts 隱藏判定用）
+const SIDEWALK_MARK_GEO = new THREE.PlaneGeometry(2.3, SIDEWALK_MARK_LENGTH);
 const SIDEWALK_MARK_MAT = new THREE.MeshBasicMaterial({
   map: makeSidewalkMarkTexture(),
   transparent: true,

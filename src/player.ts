@@ -104,14 +104,17 @@ export class Player {
     this.currentAnim = name;
   }
 
-  // dirX：-1 往左、+1 往右、0 不動；dz：這一幀世界捲動量（用來同步走路動畫）
+  // dirX：-1 往左、+1 往右、0 不動；dirZ：+1 前進、-1 後退、0 不動（按鍵意圖，
+  // 決定角色面向哪裡）；dz：這一幀世界捲動量（用來同步走路動畫）
   update(
     dt: number,
     dirX: number,
+    dirZ: number,
     strafeSpeed: number,
     obstacles: Obstacles,
     dz: number,
   ): void {
+    this.turnToward(dirX, dirZ, dt);
     let movedX = 0;
     if (dirX !== 0) {
       const oldX = this.mesh.position.x;
@@ -141,6 +144,18 @@ export class Player {
     }
   }
 
+  // 角色外觀轉向按鍵方向：前進面向遠方（背影）、後退轉過來面向鏡頭、左右就側身，
+  // 斜向是 45 度。放開按鍵就維持最後的朝向。只轉外觀，碰撞箱（AABB）不轉。
+  private turnToward(dirX: number, dirZ: number, dt: number): void {
+    if (dirX === 0 && dirZ === 0) return;
+    // mesh 的 -Z 是前進方向：轉 θ 後 -Z 指向 (-sinθ, -cosθ)，要等於 (dirX, -dirZ)
+    const target = Math.atan2(-dirX, dirZ);
+    const cur = this.mesh.rotation.y;
+    // 走最短弧度（差值折進 -π ~ π）
+    const delta = Math.atan2(Math.sin(target - cur), Math.cos(target - cur));
+    this.mesh.rotation.y = cur + delta * (1 - Math.exp(-TUNING.turnDamp * dt));
+  }
+
   // 每一幀都要呼叫（不分遊戲狀態）：推進動畫、順便完成模型載好後的換裝
   tick(dt: number): void {
     if (!this.rig && charactersReady(this.form)) this.buildRig();
@@ -154,6 +169,7 @@ export class Player {
 
   reset(): void {
     this.mesh.position.set(colX(0), this.size.y / 2, 0); // 從人行道出發
+    this.mesh.rotation.y = 0; // 面向前方
     this.buildRig(); // 每關換一位路人
   }
 }

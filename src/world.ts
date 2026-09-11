@@ -18,6 +18,7 @@ import {
   roadMarkMaterial,
   sidewalkMaterial,
   makeSidewalkMark,
+  SIDEWALK_MARK_LENGTH,
   makeBusZone,
 } from "./skins";
 
@@ -277,12 +278,13 @@ export class World {
     for (const mark of this.sidewalkMarks) {
       if (wrap(mark)) mark.position.x = this.randomSidewalkX();
       const side = mark.position.x < 0 ? "left" : "right";
+      const halfMark = SIDEWALK_MARK_LENGTH / 2 + 0.2; // 字長的一半 + 緩衝
       const onParking = parkingZones.some(
         (zone) =>
           zone.side === side &&
-          Math.abs(mark.position.z - zone.z) < zone.halfLen + 4.8,
+          Math.abs(mark.position.z - zone.z) < zone.halfLen + halfMark,
       );
-      mark.visible = !nearZone(mark.position.z, 4.8) && !onParking; // 字長 9.2 的一半 + 緩衝
+      mark.visible = !nearZone(mark.position.z, halfMark) && !onParking;
     }
   }
 }

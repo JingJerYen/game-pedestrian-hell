@@ -214,7 +214,8 @@ renderer.setAnimationLoop(() => {
     ); // 生成點有車就不生（不然路障會砸在車上）
     traffic.update(dt, dz, obstacles, lv, intersections);
     const dirX = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
-    player.update(dt, dirX, lv.strafeSpeed ?? TUNING.strafeSpeed, obstacles, dz);
+    const dirZ = held.has("up") ? 1 : held.has("down") ? -1 : 0;
+    player.update(dt, dirX, dirZ, lv.strafeSpeed ?? TUNING.strafeSpeed, obstacles, dz);
 
     position += dz;
     maxDistance = Math.max(maxDistance, position);
