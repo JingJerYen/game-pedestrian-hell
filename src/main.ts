@@ -274,6 +274,7 @@ renderer.setAnimationLoop(() => {
 
   player.tick(dt); // 動畫每一幀都推進（結算畫面也要，倒下動畫才播得完）
   updateCamera(dt);
+  world.updateBackdrop(camera.position.x);
   renderer.render(world.scene, camera);
 });
 

@@ -24,6 +24,9 @@ import {
   makeSidewalkMark,
   SIDEWALK_MARK_LENGTH,
   makeBusZone,
+  makeBackdrop,
+  makeGround,
+  type Backdrop,
 } from "./skins";
 
 const ROAD_LENGTH = 220; // 路面長度（夠長到看不見盡頭就好）
@@ -42,6 +45,7 @@ export class World {
   // 最遠那棟後面（順便換一棟新的）。進路口範圍／讓位給目的地建築時隱藏。
   private readonly rows: { side: -1 | 1; list: RowBuilding[] }[] = [];
   private buildingModelsApplied = false; // 建築模型載好後把整排色塊一次換成模型
+  private readonly backdrop: Backdrop; // 馬路盡頭的大背景圖
   private readonly markGroups: THREE.Group[] = []; // 路面標記（慢/50）：一組=一側車道各一字
   private readonly sidewalkMarks: THREE.Mesh[] = []; // 人行道上的「人行道」字
   private readonly busZones: THREE.Group[] = []; // 公車停靠區：外側車道貼路邊線的長條
@@ -54,7 +58,16 @@ export class World {
     const roadZ = -ROAD_LENGTH / 2 + WRAP_Z;
 
     this.scene.background = new THREE.Color(0x87b5d9); // 天空
-    this.scene.fog = new THREE.Fog(0x87b5d9, 60, 160); // 遠處霧化，遮住物件生成/消失
+    const fog = new THREE.Fog(0x87b5d9, 60, 160); // 遠處霧化，遮住物件生成/消失
+    this.scene.fog = fog;
+
+    // 大地面：鋪滿整個可見範圍（不捲動，看不出來在動）
+    this.scene.add(makeGround(1200));
+
+    // 遠景大背景圖：以鏡頭為圓心的弧面，立在霧的盡頭之外，不捲動；x 每幀跟著鏡頭（updateBackdrop）
+    this.backdrop = makeBackdrop(fog.color);
+    this.backdrop.group.position.z = t.cameraDistance; // 圓心放在鏡頭的 z
+    this.scene.add(this.backdrop.group);
 
     // 光：一盞環境半球光 + 一盞太陽平行光
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x666677, 1.1));
@@ -189,6 +202,11 @@ export class World {
         mark.position.z = WRAP_Z - Math.random() * ROAD_LENGTH;
       }
     });
+  }
+
+  // 每幀在鏡頭定位之後呼叫：背景圖跟著鏡頭橫移一部分（follow=1 就像貼在螢幕上）
+  updateBackdrop(cameraX: number): void {
+    this.backdrop.group.position.x = cameraX * TUNING.backdrop.follow;
   }
 
   // 重組一棟街屋（外觀與尺寸由 skins.ts 決定），正面貼齊人行道外緣

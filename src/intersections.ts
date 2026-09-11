@@ -25,8 +25,9 @@ import {
 
 // 共用幾何與材質（每個路口只是重複引用，生成/移除都很便宜）
 const ASPHALT = new THREE.MeshLambertMaterial({ color: 0x3a3a3e });
+// 橫向小路往兩側鋪很長，直到消失在霧裡（不然路口看出去 20 公尺就沒路了）
 const SIDE_ROAD_GEO = new THREE.PlaneGeometry(
-  WALK_MAX_X - WALK_MIN_X + 40,
+  WALK_MAX_X - WALK_MIN_X + 400,
   TUNING.intersection.roadDepth,
 );
 
