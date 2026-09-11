@@ -3,7 +3,7 @@
 
 export class DebugOverlay {
   private readonly el = document.getElementById("debug")!;
-  private visible = false;
+  private visibleFlag = false;
   private acc = 0;
   private frames = 0;
   private fps = 0;
@@ -11,10 +11,14 @@ export class DebugOverlay {
   constructor() {
     window.addEventListener("keydown", (e) => {
       if (e.key === "`") {
-        this.visible = !this.visible;
-        this.el.classList.toggle("show", this.visible);
+        this.visibleFlag = !this.visibleFlag;
+        this.el.classList.toggle("show", this.visibleFlag);
       }
     });
+  }
+
+  get visible(): boolean {
+    return this.visibleFlag;
   }
 
   // lines 用函式傳，隱藏時完全不花力氣組字串
@@ -25,7 +29,7 @@ export class DebugOverlay {
     this.fps = this.frames / this.acc;
     this.acc = 0;
     this.frames = 0;
-    if (this.visible) {
+    if (this.visibleFlag) {
       this.el.textContent = `fps ${this.fps.toFixed(0)}\n${lines()}`;
     }
   }

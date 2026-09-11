@@ -46,6 +46,7 @@ export class World {
   private readonly rows: { side: -1 | 1; list: RowBuilding[] }[] = [];
   private buildingModelsApplied = false; // 建築模型載好後把整排色塊一次換成模型
   private readonly backdrop: Backdrop; // 馬路盡頭的大背景圖
+  private backdropIndex = 0; // 目前用的是 sets 的第幾張
   private readonly markGroups: THREE.Group[] = []; // 路面標記（慢/50）：一組=一側車道各一字
   private readonly sidewalkMarks: THREE.Mesh[] = []; // 人行道上的「人行道」字
   private readonly busZones: THREE.Group[] = []; // 公車停靠區：外側車道貼路邊線的長條
@@ -61,6 +62,12 @@ export class World {
     this.scene.background = new THREE.Color(0x87b5d9);
     this.scene.fog = new THREE.Fog(0x87b5d9, 60, 160); // 遠處霧化，遮住物件生成/消失
 
+    // 光：一盞環境半球光 + 一盞太陽平行光（固定白天；夜景只換背景圖，燈光不動）
+    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x666677, 1.1));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+    sun.position.set(-20, 30, -10);
+    this.scene.add(sun);
+
     // 大地面：鋪滿整個可見範圍（不捲動，看不出來在動）
     this.scene.add(makeGround(1200));
 
@@ -70,11 +77,6 @@ export class World {
     this.scene.add(this.backdrop.group);
     this.setBackdrop(0);
 
-    // 光：一盞環境半球光 + 一盞太陽平行光
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x666677, 1.1));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.4);
-    sun.position.set(-20, 30, -10);
-    this.scene.add(sun);
 
     // 柏油路面（迎面車道＋雙黃線區＋對向車道）
     const road = new THREE.Mesh(
@@ -209,11 +211,24 @@ export class World {
   setBackdrop(index: number): void {
     const sets = TUNING.backdrop.sets;
     if (!sets.length) return;
-    const set = sets[((index % sets.length) + sets.length) % sets.length];
+    this.backdropIndex = ((index % sets.length) + sets.length) % sets.length;
+    const set = sets[this.backdropIndex];
     const sky = new THREE.Color(set.sky);
     (this.scene.background as THREE.Color).copy(sky);
     (this.scene.fog as THREE.Fog).color.copy(sky);
-    this.backdrop.show(set.image, sky);
+    this.backdrop.show(set.image, sky, set.horizonRatio ?? TUNING.backdrop.horizonRatio);
+  }
+
+  // 換下一張背景（測試熱鍵 2）
+  nextBackdrop(): void {
+    this.setBackdrop(this.backdropIndex + 1);
+  }
+
+  // debug overlay 用：目前背景是第幾張／共幾張、檔名
+  get backdropInfo(): string {
+    const sets = TUNING.backdrop.sets;
+    if (!sets.length) return "none";
+    return `${this.backdropIndex + 1}/${sets.length} ${sets[this.backdropIndex].image}`;
   }
 
   // 每幀在鏡頭定位之後呼叫：背景圖跟著鏡頭橫移一部分（follow=1 就像貼在螢幕上）

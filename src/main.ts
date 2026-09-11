@@ -4,7 +4,7 @@
 //   失敗（被撞/超時）→ fail（扣一❤）→ 按鍵重來本關；❤用完 → 按鍵回第一關
 
 import * as THREE from "three";
-import { TUNING, LEVELS } from "./tuning";
+import { TUNING, LEVELS, type PlayerForm } from "./tuning";
 import { getLevel } from "./levelgen";
 import { World } from "./world";
 import { Player } from "./player";
@@ -48,6 +48,16 @@ const intersections = new Intersections(world.scene);
 const destination = new Destination(world.scene);
 const hud = new Hud();
 const debug = new DebugOverlay();
+
+// 測試熱鍵：1 = 換下一種玩家型態（步行 → 嬰兒車 → 輪椅 → 步行…）；2 = 換下一張背景圖。
+// 按一次換一張，輪著轉。正式版兩者都由關卡表決定。
+const FORM_CYCLE: PlayerForm[] = ["walker", "stroller", "wheelchair"];
+window.addEventListener("keydown", (e) => {
+  if (e.key === "1") {
+    const next = (FORM_CYCLE.indexOf(player.form) + 1) % FORM_CYCLE.length;
+    player.setForm(FORM_CYCLE[next]);
+  } else if (e.key === "2") world.nextBackdrop();
+});
 
 // 按住 ↑↓←→（或 WASD）移動（用 keydown/keyup 追蹤「現在按著哪些鍵」）
 const held = new Set<string>();
@@ -269,6 +279,7 @@ renderer.setAnimationLoop(() => {
       `pos ${position.toFixed(1)} / max ${maxDistance.toFixed(1)} / goal ${lv.goalDistance}`,
       `time ${timeLeft.toFixed(1)}s`,
       `spawnInterval ${lv.spawnInterval}s  speedScale ${lv.speedScale}`,
+      `backdrop ${world.backdropInfo}  (按 2 切換)`,
       `cars ${c.total} (turning ${c.turning})  bikes ${c.bikes} (in lane ${c.bikesInLane}, stopped ${c.bikesStopped}, clipping ${c.bikeClips})  obstacles ${obstacles.count}  intersections ${intersections.count}`,
     ].join("\n");
   });

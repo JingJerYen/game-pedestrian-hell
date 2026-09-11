@@ -29,17 +29,21 @@ export const TUNING = {
   backdrop: {
     // 輪換清單：每關換下一張（無限模式一路輪下去），關卡表可用 backdrop 欄位指定第幾張。
     // sky = 天空與霧的顏色，要配合那張圖地平線附近的霧色，接縫才看不出來（日落就配橘）。
+    // horizonRatio 可個別覆寫（那張圖的天際線底部在畫面高度幾成處）；沒寫用下面的全域值。
     // 圖的規格見 public/assets/backdrops.md。
     sets: [
-      { image: "assets/backdrop.jpg", sky: 0x87b5d9 }, // 台北 101 天際線
-      // { image: "assets/backdrop-kaohsiung.jpg", sky: 0x9fc3dc }, // 高雄 85 大樓
-      // { image: "assets/backdrop-sunset.jpg", sky: 0xe6a97c }, // 日落
-    ],
+      { image: "assets/backdrop-taipei.jpg", sky: 0x87b5d9, horizonRatio: 0.17 }, // 台北 101 白天
+      { image: "assets/backdrop-kaohsiung.jpg", sky: 0x9cc4ea, horizonRatio: 0.09 }, // 高雄 85 白天
+      { image: "assets/backdrop-kaohsiung-sunset.jpg", sky: 0xf08058, horizonRatio: 0.15 }, // 高雄 85 日落
+      { image: "assets/backdrop-taipei-night.jpg", sky: 0x4a4d78, horizonRatio: 0.15 }, // 台北 101 夜景
+    ] as { image: string; sky: number; horizonRatio?: number }[],
     distance: 190, // 弧面半徑：要比霧的盡頭（160）遠、比鏡頭能看的最遠（300）近
-    height: 380, // 圖在世界裡的高度（公尺），正前方的寬度依圖片比例自動算。380 剛好鋪滿橫式 16:9 的畫面寬
+    // 圖在世界裡的高度（公尺）＝天際線看起來多高的總開關：380 樓群很巨大、220 像遠處的城市。
+    // 寬度不用管，弧面超出圖片的部分會鏡射延伸。上緣只要蓋過畫面頂就好（≥150 都夠）
+    height: 220,
     arcDegrees: 170, // 弧長幾度：超出圖片寬度的部分用鏡射延伸（路口斜看出去才不會看穿）
     horizonRatio: 0.17, // 圖片的地平線在高度的幾成處（從下緣算起），所有圖都照這個規格出
-    fadeHeight: 18, // 地平線往上這段高度漸漸融進霧色（蓋掉近處樓群的底部，天際線留著）
+    fadeHeight: 12, // 地平線往上這段高度漸漸融進霧色（蓋掉近處樓群的底部，天際線留著）；height 縮小時這個也要跟著縮
     follow: 0.85, // 鏡頭橫移時背景跟多少：1 = 像貼在螢幕上不動、0 = 固定在世界裡（視差最大）
   },
 
@@ -64,7 +68,7 @@ export const TUNING = {
   walkAnimBaseSpeed: 3.5, // 走路動畫的基準速度：實際移動速度÷這個＝動畫播放倍率
   turnDamp: 14, // 轉身平滑度：角色外觀轉向按鍵方向（左右/後退/斜向）有多快，越大轉越俐落
 
-  // ── 玩家型態（難度桿之一：體積越大越難閃。測試用 1/2/3 鍵切換）──
+  // ── 玩家型態（難度桿之一：體積越大越難閃。測試用按 1 輪替）──
   playerForms: {
     walker: { size: { x: 0.8, y: 1.6, z: 0.8 }, color: 0x3b7bff }, // 單人步行
     stroller: { size: { x: 0.9, y: 1.6, z: 1.8 }, color: 0x2bb5a0 }, // 推嬰兒車（前面多一截）

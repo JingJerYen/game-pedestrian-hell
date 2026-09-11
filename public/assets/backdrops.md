@@ -17,8 +17,9 @@
 ## 放進遊戲
 
 1. 檔案放 `public/assets/`，例如 `backdrop-kaohsiung.jpg`。
-2. 到 `src/tuning.ts` 的 `TUNING.backdrop.sets` 加一行：`{ image: "assets/backdrop-kaohsiung.jpg", sky: 0x9fc3dc }`。
+2. 到 `src/tuning.ts` 的 `TUNING.backdrop.sets` 加一行：`{ image: "assets/backdrop-kaohsiung.jpg", sky: 0x9cc4ea, horizonRatio: 0.09 }`。
    `sky` 填那張圖地平線附近霧的顏色（用小畫家/取色器吸一下），日落配橘、夜景配深藍。
+   `horizonRatio` 填那張圖天際線底部在畫面高度的幾成處（從下往上算），沒寫就用全域預設。
 3. 預設每關輪下一張；想指定哪關用哪張，在 `LEVELS` 那關加 `backdrop: 2`（第幾張，0 起算）。
 
 ## 提示詞（英文效果最穩，直接複製貼上）

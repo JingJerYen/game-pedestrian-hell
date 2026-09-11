@@ -288,7 +288,8 @@ export function makeStopLine(width: number): THREE.Mesh {
 // 可以換圖（每關輪換）：貼圖載一次就快取。圖載好才顯示；載不到就維持純色天空。
 export interface Backdrop {
   group: THREE.Group; // world.ts 擺位置；x 每幀跟著鏡頭走一部分
-  show(image: string, sky: THREE.Color): void; // 換成這張圖、漸層改成這個霧色
+  // 換成這張圖、漸層改成這個霧色；horizonRatio = 這張圖的地平線在高度幾成處
+  show(image: string, sky: THREE.Color, horizonRatio: number): void;
 }
 export function makeBackdrop(): Backdrop {
   const c = TUNING.backdrop;
@@ -298,37 +299,44 @@ export function makeBackdrop(): Backdrop {
   // 弧面正中央對著 -Z（鏡頭前方）；從內側看，材質用 BackSide
   const arcGeo = (radius: number) =>
     new THREE.CylinderGeometry(radius, radius, c.height, 96, 1, true, Math.PI - arc / 2, arc);
-  const centerY = c.height * (0.5 - c.horizonRatio); // 圖的地平線對齊 y=0
-
   const pictureMat = new THREE.MeshBasicMaterial({ fog: false, side: THREE.BackSide });
   const picture = new THREE.Mesh(arcGeo(c.distance), pictureMat);
-  picture.position.y = centerY;
   group.add(picture);
 
   // 霧色漸層：畫成白色＋透明度，實際顏色用材質 color 染（換霧色不用重畫）
   const canvas = document.createElement("canvas");
   canvas.width = 4;
   canvas.height = 512;
-  const ctx = canvas.getContext("2d")!;
-  const horizonRow = (1 - c.horizonRatio) * 512; // canvas 的 y 從上往下
-  const fadeRows = (c.fadeHeight / c.height) * 512;
-  const grad = ctx.createLinearGradient(0, horizonRow - fadeRows, 0, horizonRow);
-  grad.addColorStop(0, "rgba(255,255,255,0)");
-  grad.addColorStop(1, "rgba(255,255,255,1)");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 4, horizonRow);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, horizonRow, 4, 512 - horizonRow);
+  const fadeTex = new THREE.CanvasTexture(canvas);
   const fadeMat = new THREE.MeshBasicMaterial({
-    map: new THREE.CanvasTexture(canvas),
+    map: fadeTex,
     transparent: true,
     fog: false,
     depthWrite: false,
     side: THREE.BackSide,
   });
   const fade = new THREE.Mesh(arcGeo(c.distance - 1), fadeMat); // 疊在圖前面一點點
-  fade.position.y = centerY;
   group.add(fade);
+
+  // 依這張圖的地平線位置：圖的地平線對齊 y=0，漸層從地平線往上 fadeHeight 淡出
+  const setHorizon = (horizonRatio: number) => {
+    const centerY = c.height * (0.5 - horizonRatio);
+    picture.position.y = centerY;
+    fade.position.y = centerY;
+    const ctx = canvas.getContext("2d")!;
+    ctx.clearRect(0, 0, 4, 512);
+    const horizonRow = (1 - horizonRatio) * 512; // canvas 的 y 從上往下
+    const fadeRows = (c.fadeHeight / c.height) * 512;
+    const grad = ctx.createLinearGradient(0, horizonRow - fadeRows, 0, horizonRow);
+    grad.addColorStop(0, "rgba(255,255,255,0)");
+    grad.addColorStop(1, "rgba(255,255,255,1)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 4, horizonRow);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, horizonRow, 4, 512 - horizonRow);
+    fadeTex.needsUpdate = true;
+  };
+  setHorizon(c.horizonRatio);
 
   const loader = new THREE.TextureLoader();
   const cache = new Map<string, THREE.Texture>();
@@ -340,8 +348,9 @@ export function makeBackdrop(): Backdrop {
   };
   return {
     group,
-    show(image, sky) {
+    show(image, sky, horizonRatio) {
       fadeMat.color.copy(sky);
+      setHorizon(horizonRatio);
       wanted = image;
       const cached = cache.get(image);
       if (cached) {

@@ -24,7 +24,7 @@ import {
 export class Player {
   readonly mesh: THREE.Group; // 外層定位用（原點＝碰撞箱中心），內容物是角色或色塊
   size: Size3 = TUNING.playerForms.walker.size; // 目前型態的碰撞尺寸
-  private form: PlayerForm = "walker";
+  form: PlayerForm = "walker"; // 目前型態（測試熱鍵輪替用；改型態請走 setForm）
   private rig: CharacterRig | null = null;
   private readonly fallback: THREE.Mesh; // 模型還沒載好前的色塊
   private currentAnim = "";
@@ -40,13 +40,7 @@ export class Player {
     this.setForm("walker");
     this.reset();
     scene.add(this.mesh);
-
-    // 測試用：切換玩家型態（正式版由關卡表決定）
-    window.addEventListener("keydown", (e) => {
-      if (e.key === "1") this.setForm("walker");
-      if (e.key === "2") this.setForm("stroller");
-      if (e.key === "3") this.setForm("wheelchair");
-    });
+    // 測試用的型態切換熱鍵（1）在 main.ts，正式版由關卡表決定
   }
 
   setForm(form: PlayerForm): void {
