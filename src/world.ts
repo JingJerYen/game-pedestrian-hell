@@ -11,9 +11,13 @@ import {
   BG_LEFT,
   BG_RIGHT,
   RIGHT_SIDEWALK_COL,
+  SIDEWALK_WIDTH,
 } from "./tuning";
 import {
   makeBuilding,
+  restyleBuilding,
+  buildingModelsReady,
+  type BuildingParts,
   makeRoadMark,
   roadMarkMaterial,
   sidewalkMaterial,
@@ -24,13 +28,20 @@ import {
 
 const ROAD_LENGTH = 220; // 路面長度（夠長到看不見盡頭就好）
 const DASH_SPACING = 6; // 車道虛線間距
-const BUILDING_SPACING = 14; // 路旁建築間距
 const WRAP_Z = 30; // 捲過這個 Z 就繞回最遠處
+
+interface RowBuilding {
+  parts: BuildingParts;
+  len: number; // 面寬（沿路方向的長度）
+}
 
 export class World {
   readonly scene = new THREE.Scene();
   private readonly scrolling: THREE.Mesh[] = []; // 會捲動循環的東西（車道虛線）
-  private readonly buildings: THREE.Mesh[] = []; // 建築另外管理：進路口範圍要隱藏
+  // 路旁建築：兩側各一排連棟街屋，一棟接一棟沒有空隙。整棟捲到鏡頭後面就接到
+  // 最遠那棟後面（順便換一棟新的）。進路口範圍／讓位給目的地建築時隱藏。
+  private readonly rows: { side: -1 | 1; list: RowBuilding[] }[] = [];
+  private buildingModelsApplied = false; // 建築模型載好後把整排色塊一次換成模型
   private readonly markGroups: THREE.Group[] = []; // 路面標記（慢/50）：一組=一側車道各一字
   private readonly sidewalkMarks: THREE.Mesh[] = []; // 人行道上的「人行道」字
   private readonly busZones: THREE.Group[] = []; // 公車停靠區：外側車道貼路邊線的長條
@@ -109,21 +120,19 @@ export class World {
       }
     }
 
-    // 路旁建築（外觀由 skins.ts 的 makeBuilding 決定）：兩側人行道外
-    const buildingCount = Math.ceil(ROAD_LENGTH / BUILDING_SPACING);
+    // 路旁建築：從鏡頭後方（WRAP_Z）開始一棟接一棟往遠處排，排滿整段路
     for (const side of [-1, 1] as const) {
-      for (let i = 0; i < buildingCount; i++) {
-        const w = 4 + Math.random() * 4;
-        const h = 4 + Math.random() * 10;
-        const x =
-          side === -1
-            ? roadLeft - sidewalkWidth - t.buildingGap - w / 2
-            : BG_RIGHT + sidewalkWidth + t.buildingGap + w / 2;
-        const building = makeBuilding(w, h, 8);
-        building.position.set(x, h / 2, WRAP_Z - i * BUILDING_SPACING);
-        this.scene.add(building);
-        this.buildings.push(building);
+      const list: RowBuilding[] = [];
+      let nearZ = WRAP_Z; // 下一棟的近端要貼在這裡
+      while (WRAP_Z - nearZ < ROAD_LENGTH) {
+        const b: RowBuilding = { parts: makeBuilding(), len: 0 };
+        this.restyleRowBuilding(b, side);
+        b.parts.root.position.z = nearZ - b.len / 2;
+        nearZ -= b.len;
+        this.scene.add(b.parts.root);
+        list.push(b);
       }
+      this.rows.push({ side, list });
     }
 
     // 路面標記（慢/速限50，裝飾）：成對出現在同一側的每條車道、同一個 z，
@@ -182,6 +191,28 @@ export class World {
     });
   }
 
+  // 重組一棟街屋（外觀與尺寸由 skins.ts 決定），正面貼齊人行道外緣
+  private restyleRowBuilding(b: RowBuilding, side: -1 | 1): void {
+    // 左側建築正面朝 +X（馬路在右邊）、右側朝 -X；root 原點放在人行道外緣那條線上
+    b.len = restyleBuilding(b.parts, side === -1 ? 1 : -1);
+    b.parts.root.position.x =
+      side === -1
+        ? ROAD_LEFT - SIDEWALK_WIDTH - TUNING.buildingGap
+        : BG_RIGHT + SIDEWALK_WIDTH + TUNING.buildingGap;
+    b.parts.root.position.y = 0;
+  }
+
+  // 整排重排：把每棟依目前順序重新首尾相接（換成模型後面寬變了，要重排才不會有縫）
+  private relayoutRow(list: RowBuilding[], side: -1 | 1): void {
+    const sorted = [...list].sort((a, b) => b.parts.root.position.z - a.parts.root.position.z);
+    let nearZ = sorted[0].parts.root.position.z + sorted[0].len / 2;
+    for (const b of sorted) {
+      this.restyleRowBuilding(b, side);
+      b.parts.root.position.z = nearZ - b.len / 2;
+      nearZ -= b.len;
+    }
+  }
+
   private randomSidewalkX(): number {
     return colX(Math.random() < 0.5 ? 0 : RIGHT_SIDEWALK_COL);
   }
@@ -237,16 +268,40 @@ export class World {
       intersectionCenters.some((c) => Math.abs(z - c) < zoneHalf + margin);
 
     for (const mesh of this.scrolling) wrap(mesh);
-    for (const building of this.buildings) {
-      wrap(building);
-      const side = building.position.x < 0 ? "left" : "right";
-      const yieldToDestination =
-        destinationZone !== null &&
-        destinationZone.side === side &&
-        Math.abs(building.position.z - destinationZone.z) <
-          destinationZone.margin + 4;
-      building.visible =
-        !nearZone(building.position.z, 5) && !yieldToDestination; // 建築縱深 8 的一半 + 緩衝
+    if (!this.buildingModelsApplied && buildingModelsReady()) {
+      this.buildingModelsApplied = true;
+      for (const { side, list } of this.rows) this.relayoutRow(list, side);
+    }
+    for (const { side, list } of this.rows) {
+      for (const b of list) b.parts.root.position.z += dz;
+      // 整棟捲到鏡頭後面 → 接到最遠那棟後面（換一棟新的）；倒著走則反過來接到最近那棟前面
+      for (let guard = list.length; guard > 0; guard--) {
+        let near = list[0];
+        let far = list[0];
+        for (const b of list) {
+          if (b.parts.root.position.z > near.parts.root.position.z) near = b;
+          if (b.parts.root.position.z < far.parts.root.position.z) far = b;
+        }
+        if (near.parts.root.position.z - near.len / 2 > WRAP_Z) {
+          const farEdge = far.parts.root.position.z - far.len / 2;
+          this.restyleRowBuilding(near, side);
+          near.parts.root.position.z = farEdge - near.len / 2;
+        } else if (far.parts.root.position.z + far.len / 2 < WRAP_Z - ROAD_LENGTH) {
+          const nearEdge = near.parts.root.position.z + near.len / 2;
+          this.restyleRowBuilding(far, side);
+          far.parts.root.position.z = nearEdge + far.len / 2;
+        } else break;
+      }
+      const sideName = side === -1 ? "left" : "right";
+      for (const b of list) {
+        const half = b.len / 2 + 0.5; // 面寬的一半 + 緩衝
+        const z = b.parts.root.position.z;
+        const yieldToDestination =
+          destinationZone !== null &&
+          destinationZone.side === sideName &&
+          Math.abs(z - destinationZone.z) < destinationZone.margin + half;
+        b.parts.root.visible = !nearZone(z, half) && !yieldToDestination;
+      }
     }
     for (const group of this.markGroups) {
       group.position.z += dz;

@@ -3,6 +3,8 @@
 // （車輛/玩家/路障的皮不在這裡，掛載點在 traffic/player/obstacles 各自的 mesh 生成處。）
 
 import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { TUNING } from "./tuning";
 
 // ── 斑馬線 ──
 // 現在是一根根白色枕木紋；之後想換整片貼圖，就把 bars 換成一張 PlaneGeometry + map。
@@ -279,13 +281,91 @@ export function makeStopLine(width: number): THREE.Mesh {
 
 // ── 路旁建築 ──
 // 之後貼皮：把單一材質換成六面材質陣列（正面招牌、側面牆），或整個換成模型。
-export function makeBuilding(w: number, h: number, depth: number): THREE.Mesh {
-  return new THREE.Mesh(
-    new THREE.BoxGeometry(w, h, depth),
-    new THREE.MeshLambertMaterial({
-      color: new THREE.Color().setHSL(Math.random(), 0.25, 0.55),
-    }),
-  );
+// ── 路旁建築（連棟街屋）──
+// 有模型就用模型：把 GLB 放進 public/assets/models/buildings/，檔名加進 BUILDING_MODELS，
+// 每棟隨機抽一款，面寬用模型的實際寬度，一棟接一棟排。
+// 模型規格：單位公尺（街屋面寬約 4~6、一層樓約 3.2）；正面朝 +Z（跟 Kenney 一樣）；
+// 原點位置不拘，程式會自動把「底部貼地、正面貼齊人行道、面寬置中」。
+// 還沒放模型（或還沒載好）就用素色方塊撐著，載好會自動全部換掉。
+const BUILDING_MODELS: string[] = [
+  // "shophouse-a", "shophouse-b", ...  ← 放好 glb 之後把檔名（不含 .glb）加在這裡
+];
+const buildingProtos: THREE.Object3D[] = [];
+let buildingLoadStarted = false;
+
+export function preloadBuildingModels(): void {
+  if (buildingLoadStarted) return;
+  buildingLoadStarted = true;
+  const loader = new GLTFLoader();
+  const base = `${import.meta.env.BASE_URL}assets/models/buildings/`;
+  for (const name of BUILDING_MODELS) {
+    loader.load(
+      `${base}${name}.glb`,
+      (gltf) => buildingProtos.push(gltf.scene),
+      undefined,
+      () => console.warn(`建築模型載入失敗：${name}.glb`),
+    );
+  }
+}
+export function buildingModelsReady(): boolean {
+  return buildingProtos.length > 0;
+}
+
+// 素色方塊（fallback）：1×1×1 單位方塊，尺寸用 scale 決定
+const BUILDING_GEO = new THREE.BoxGeometry(1, 1, 1);
+
+export interface BuildingParts {
+  root: THREE.Group; // 原點 = 人行道外緣那條線上、地面高度、面寬中心
+  box: THREE.Mesh;
+  model: THREE.Object3D | null;
+}
+
+export function makeBuilding(): BuildingParts {
+  preloadBuildingModels();
+  const box = new THREE.Mesh(BUILDING_GEO, new THREE.MeshLambertMaterial());
+  const root = new THREE.Group();
+  root.add(box);
+  return { root, box, model: null };
+}
+
+// 重組一棟（建築繞回遠處時也會呼叫，街景才不會一直看到同一排）。
+// facing = +1 正面朝 +X（左側建築，馬路在它右邊）、-1 朝 -X。回傳面寬（沿路方向的長度）。
+export function restyleBuilding(b: BuildingParts, facing: 1 | -1): number {
+  if (b.model) {
+    b.root.remove(b.model);
+    b.model = null;
+  }
+  if (buildingProtos.length > 0) {
+    b.box.visible = false;
+    const proto = buildingProtos[Math.floor(Math.random() * buildingProtos.length)];
+    const model = proto.clone(); // 幾何與材質共用，clone 很便宜
+    model.rotation.y = facing === 1 ? Math.PI / 2 : -Math.PI / 2; // +Z 正面轉向馬路
+    model.position.set(0, 0, 0);
+    const bb = new THREE.Box3().setFromObject(model);
+    // 正面貼齊 root 原點（x=0）、底貼地、面寬置中
+    model.position.set(
+      facing === 1 ? -bb.max.x : -bb.min.x,
+      -bb.min.y,
+      -(bb.min.z + bb.max.z) / 2,
+    );
+    b.root.add(model);
+    b.model = model;
+    return bb.max.z - bb.min.z;
+  }
+  // fallback：隨機面寬/樓層/深度的色塊
+  const c = TUNING.buildings;
+  const wide = Math.random() < c.wideChance;
+  const len = wide
+    ? THREE.MathUtils.lerp(c.wideFrontageMin, c.wideFrontageMax, Math.random())
+    : THREE.MathUtils.lerp(c.frontageMin, c.frontageMax, Math.random());
+  const floors = c.floorsMin + Math.floor(Math.random() * (c.floorsMax - c.floorsMin + 1));
+  const h = floors * c.floorHeight;
+  const depth = THREE.MathUtils.lerp(c.depthMin, c.depthMax, Math.random());
+  b.box.visible = true;
+  b.box.scale.set(depth, h, len);
+  b.box.position.set(-facing * (depth / 2), h / 2, 0); // 正面貼齊原點、往背後延伸
+  (b.box.material as THREE.MeshLambertMaterial).color.setHSL(Math.random(), 0.25, 0.55);
+  return len;
 }
 
 // ── 目的地建築（每關終點）──

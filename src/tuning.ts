@@ -25,6 +25,20 @@ export const TUNING = {
   centerGap: 0.5, // 雙黃線區的寬度（原本的分隔島拆掉了）
   buildingGap: 0.2, // 建築物離人行道外緣多遠（調 0 就是騎樓直接貼著人行道）
 
+  // ── 路旁建築（連棟街屋：一棟接一棟沒有空隙，面寬窄、高度參差）──
+  buildings: {
+    frontageMin: 3.6, // 一般街屋的面寬（沿路方向，公尺）
+    frontageMax: 5.5,
+    wideChance: 0.12, // 偶爾來一棟寬的（公寓/商場）
+    wideFrontageMin: 8,
+    wideFrontageMax: 12,
+    floorHeight: 3.2, // 每層樓高
+    floorsMin: 2, // 樓層數範圍（高度 = 樓層 × 樓高）
+    floorsMax: 6,
+    depthMin: 6, // 往後延伸的深度（玩家看不太到，隨便）
+    depthMax: 10,
+  },
+
   // ── 玩家移動 ──
   walkSpeed: 4.2, // 按住 ↑ 的前進速度（公尺/秒）
   backSpeed: 2.6, // 按住 ↓ 的後退速度
