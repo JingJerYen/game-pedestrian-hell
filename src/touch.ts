@@ -5,6 +5,12 @@
 const DEAD_ZONE = 14; // 拖曳超過幾 px 才算有方向（避免手抖）
 const KNOB_RANGE = 44; // 搖桿頭最多離中心幾 px（純視覺）
 
+// 點到 UI 按鈕（例如右上角的視角切換）就交給按鈕處理：不生成搖桿、也不擋掉它的點擊
+function onUiButton(e: Event): boolean {
+  const target = e.target as HTMLElement | null;
+  return !!target?.closest?.("button");
+}
+
 export class TouchControls {
   private readonly base = document.getElementById("stick-base")!;
   private readonly knob = document.getElementById("stick-knob")!;
@@ -18,12 +24,17 @@ export class TouchControls {
     private readonly onTap: () => void,
   ) {
     // 手機瀏覽器的雙擊縮放/下拉重整靠 CSS touch-action:none＋這個 preventDefault 擋掉
-    window.addEventListener("touchstart", (e) => e.preventDefault(), {
-      passive: false,
-    });
+    window.addEventListener(
+      "touchstart",
+      (e) => {
+        if (!onUiButton(e)) e.preventDefault();
+      },
+      { passive: false },
+    );
 
     window.addEventListener("pointerdown", (e) => {
       if (e.pointerType !== "touch" || this.pointerId !== null) return;
+      if (onUiButton(e)) return;
       this.onTap(); // 結算畫面的「按任意鍵」，點螢幕也算
       this.pointerId = e.pointerId;
       this.originX = e.clientX;
