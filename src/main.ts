@@ -222,17 +222,12 @@ function updateCamera(dt: number): void {
     camera.fov = fov;
     camera.updateProjectionMatrix();
   }
-  cameraX = THREE.MathUtils.damp(
-    cameraX,
-    player.mesh.position.x * t.cameraXFollow,
-    t.cameraXDamp,
-    dt,
-  );
-  // 鏡頭繞到人物背後：跟著人物「目前的朝向」（mesh.rotation.y，0 = 面向前方），
-  // 走最短弧度平滑追上；放開按鍵人物不轉，鏡頭就停在那裡
-  const targetYaw = cameraMode === "follow" ? player.mesh.rotation.y * t.cameraOrbit.ratio : 0;
+  cameraX = THREE.MathUtils.damp(cameraX, player.mesh.position.x, t.cameraXDamp, dt);
+  // 第一人稱：視線跟著人物「目前的朝向」（mesh.rotation.y，0 = 面向前方），走最短弧度平滑追上；
+  // 放開按鍵人物不轉，視線就停在那裡。第三人稱永遠看前方（yaw 收斂到 0）
+  const targetYaw = firstPerson ? player.mesh.rotation.y : 0;
   const delta = Math.atan2(Math.sin(targetYaw - cameraYaw), Math.cos(targetYaw - cameraYaw));
-  cameraYaw += delta * (1 - Math.exp(-t.cameraOrbit.damp * dt));
+  cameraYaw += delta * (1 - Math.exp(-t.firstPerson.turnDamp * dt));
   const sin = Math.sin(cameraYaw);
   const cos = Math.cos(cameraYaw);
   // 以人物為圓心：正後方 (0, height, distance) 繞 Y 軸轉 cameraYaw；視線焦點同樣轉
@@ -256,12 +251,12 @@ renderer.setAnimationLoop(() => {
     // 世界捲動量由玩家輸入決定；車輛自己的車速在 traffic 裡另外加
     // （行人速度：關卡有覆寫就用關卡的，沒有就用全域預設）
     // 按鍵 → 世界方向：mx = 往馬路右邊的量、mz = 往馬路後方的量（-1 ~ 1）。
-    // keysFollowCamera 時先把按鍵從「畫面座標」轉成世界座標（鏡頭看向哪，↑ 就往哪）
+    // 第一人稱時按鍵是畫面座標：先依視線方向轉成世界座標（鏡頭看向哪，↑ 就往哪）
     const ix = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
     const iz = held.has("up") ? 1 : held.has("down") ? -1 : 0;
     let mx = ix;
     let mz = -iz;
-    if (cameraMode === "follow" && TUNING.cameraOrbit.keysFollowCamera) {
+    if (cameraMode === "follow") {
       const s = Math.sin(cameraYaw);
       const c = Math.cos(cameraYaw);
       mx = -iz * s + ix * c;
