@@ -13,7 +13,7 @@ import {
 import { aabbHit, type Size3 } from "./collision";
 import type { Intersections } from "./intersections";
 import { makeParkingPavement } from "./skins";
-import { makeVehicleMesh } from "./vehicleskins";
+import { makeVehicleMesh, makePropMesh } from "./vehicleskins";
 import { ROAD_LEFT, BG_RIGHT, WALK_MIN_X, WALK_MAX_X, hasSidewalk } from "./tuning";
 
 interface Obstacle {
@@ -29,8 +29,20 @@ interface Pavement {
   col: number;
 }
 
-const SIDEWALK_COLORS = [0x6b6b70, 0x8a7a5c, 0x5c7a8a]; // 之後換成違停機車/攤販 sprite
+const PROP_FALLBACK_COLOR = 0x6b6b70; // 道具模型還沒載好時的色塊色
 const PARKED_CAR_COLORS = [0x9aa3ad, 0x7d8a99, 0xb0a08c];
+
+// 從 tuning.sidewalkProps 依 weight 抽一款道具
+function pickProp(): { name: string; size: Size3 } {
+  const entries = Object.entries(TUNING.sidewalkProps);
+  let r = Math.random() * entries.reduce((sum, [, p]) => sum + p.weight, 0);
+  for (const [name, p] of entries) {
+    r -= p.weight;
+    if (r <= 0) return { name, size: p.size };
+  }
+  const [name, p] = entries[entries.length - 1];
+  return { name, size: p.size };
+}
 
 export class Obstacles {
   private readonly list: Obstacle[] = [];
@@ -125,16 +137,12 @@ export class Obstacles {
       this.addParkedScooter(col, colX(col), z, size, rot);
       return { ok: true, extraGap: 0 };
     }
-    const halfLen = t.sidewalkObstacleSize.z / 2;
-    const blocked = this.canPlace(col, halfLen, occupied);
+    // 道具模型（變電箱…）：依 weight 抽一款；轉 90° 讓寬邊沿著路，所以碰撞箱的 x/z 對調
+    const prop = pickProp();
+    const size: Size3 = { x: prop.size.z, y: prop.size.y, z: prop.size.x };
+    const blocked = this.canPlace(col, size.z / 2, occupied);
     if (blocked) return blocked;
-    this.addBlock(
-      col,
-      colX(col),
-      z,
-      t.sidewalkObstacleSize,
-      SIDEWALK_COLORS[Math.floor(Math.random() * SIDEWALK_COLORS.length)],
-    );
+    this.addProp(col, colX(col), z, prop.name, size, (Math.random() < 0.5 ? 1 : -1) * (Math.PI / 2));
     return { ok: true, extraGap: 0 };
   }
 
@@ -256,18 +264,11 @@ export class Obstacles {
     this.list.push({ mesh, size, col });
   }
 
-  private addBlock(
-    col: number,
-    x: number,
-    z: number,
-    size: Size3,
-    color: number,
-  ): void {
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(size.x, size.y, size.z),
-      new THREE.MeshLambertMaterial({ color }),
-    );
+  // 人行道道具：模型正面朝 +Z，rotationY = ±90° 讓寬邊沿路（size 已是轉過之後的碰撞箱）
+  private addProp(col: number, x: number, z: number, name: string, size: Size3, rotationY: number): void {
+    const mesh = makePropMesh(name, PROP_FALLBACK_COLOR);
     mesh.position.set(x, size.y / 2, z);
+    mesh.rotation.y = rotationY;
     this.scene.add(mesh);
     this.list.push({ mesh, size, col });
   }

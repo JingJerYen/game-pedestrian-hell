@@ -5,7 +5,9 @@
 // 街景自動有變化。模型會等比縮放到 tuning.ts 碰撞箱的長度、貼齊地面，
 // 所以視覺跟判定永遠對得上。Kenney 模型車頭朝 +Z，跟迎面車朝向一致。
 // 沒有模型的車種自動用純色方塊，補上 glb 就換。
+// 人行道道具（變電箱…，public/assets/models/props/）也走同一套：kind = "prop-<名>"，尺寸在 tuning 的 sidewalkProps。
 // 機車的車身（motor1 紅、gogoro 白）在載入時換成多種顏色，一色一款（recolorVariants）。
+// 車流機車另有 foodpanda 外送車（foodpanda.glb，自帶騎士與外送箱）：不進機車池，生成時依 tuning 的 chance 直接用它。
 
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -27,16 +29,25 @@ const MODEL_VARIANTS: Record<string, string[]> = {
   truck: ["truck", "truck-flat", "delivery", "garbage-truck"],
   // 車流機車：motor1（Tripo 生成，紅車身＋騎士），紅色車身換成 scooter.colors，一色一款
   scooter: ["motor1"],
+  // foodpanda 外送機車（Meshy 生成，粉紅車身＋騎士＋外送箱）：不換色，生成機車時依 scooter.foodpanda.chance 用它
+  foodpanda: ["foodpanda"],
   // 停放機車（機車格、人行道路障）：gogoro（白車身），白色換成 scooter.parkedColors，一色一款
   parkedScooter: ["gogoro"],
   // 人行道腳踏車：ubike（YouBike 含騎士），騎士衣服換成 bike.riderColors，一色一款
   bike: ["ubike"],
+  // 人行道道具：tuning.sidewalkProps 的每一項一個 kind（prop-elecbox …），檔案在 props/
+  ...Object.fromEntries(Object.keys(TUNING.sidewalkProps).map((name) => [`prop-${name}`, [name]])),
 };
-// 車頭不是朝 +Z 的模型，載入時先繞 Y 軸轉正（弧度）。motor1 車頭朝 +X → -90°；gogoro / ubike 朝 -X → +90°
+const PROP_PREFIX = "prop-";
+function modelDir(kind: string): string {
+  return kind.startsWith(PROP_PREFIX) ? "props" : "vehicles";
+}
+// 車頭不是朝 +Z 的模型，載入時先繞 Y 軸轉正（弧度）。motor1 車頭朝 +X → -90°；gogoro / ubike / foodpanda 朝 -X → +90°
 const MODEL_ROTATION_Y: Record<string, number> = {
   motor1: -Math.PI / 2,
   gogoro: Math.PI / 2,
   ubike: Math.PI / 2,
+  foodpanda: Math.PI / 2,
 };
 // 換色設定：哪些像素要換（用 HSL 判定：車身或騎士衣服）、要換成哪些顏色
 const sc = TUNING.vehicles.scooter;
@@ -68,6 +79,8 @@ const boxGeometries = new Map<string, THREE.BoxGeometry>();
 
 function sizeOf(kind: string): Size3 {
   if (kind === "bike") return TUNING.bike.size;
+  if (kind.startsWith(PROP_PREFIX)) return TUNING.sidewalkProps[kind.slice(PROP_PREFIX.length)].size;
+  if (kind === "foodpanda") return TUNING.vehicles.scooter.size; // 外送機車跟一般機車同一個碰撞箱
   if (kind === "parkedScooter") {
     // 停放機車：模型以「車頭朝 +Z」規格化，長度 = 停車格 blockSize 的 x（擺的時候會轉 90°）
     const b = TUNING.parking.types.scooter.blockSize;
@@ -81,7 +94,7 @@ export function preloadVehicleSkins(): void {
   for (const [kind, names] of Object.entries(MODEL_VARIANTS)) {
     const size = sizeOf(kind);
     for (const name of names) {
-      const url = `${import.meta.env.BASE_URL}assets/models/vehicles/${name}.glb`;
+      const url = `${import.meta.env.BASE_URL}assets/models/${modelDir(kind)}/${name}.glb`;
       gltfLoader.load(
         url,
         (gltf) => {
@@ -184,10 +197,9 @@ function recolorVariants(
   const refS = count ? sumS / count : 0.5;
   const refL = count ? sumL / count : 0.5;
 
-  const tmp = new THREE.Color();
   return cfg.colors.map((hex) => {
-    tmp.set(hex);
-    const [th, ts, tl] = rgbToHsl(tmp.r, tmp.g, tmp.b);
+    // 直接從 hex 拆 sRGB 分量（不要用 THREE.Color：它會先轉成線性空間，色相會偏）
+    const [th, ts, tl] = rgbToHsl(((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255);
     const img = ctx.createImageData(w, h);
     img.data.set(base.data);
     for (let i = 0; i < n; i++) {
@@ -240,9 +252,17 @@ function normalize(scene: THREE.Object3D, size: Size3): THREE.Object3D {
   return wrapper;
 }
 
+// 人行道道具的外觀（原點＝碰撞箱中心，正面朝 +Z）；模型沒載好時是 color 色塊
+export function makePropMesh(name: string, color: number): THREE.Object3D {
+  return makeVehicleMesh(`${PROP_PREFIX}${name}`, color);
+}
+
 // 對外唯一入口：生一台車的外觀（原點＝碰撞箱中心）。
 // color 只在還沒有模型的車種（純色方塊 fallback）派上用場。
 export function makeVehicleMesh(kind: string, color: number): THREE.Object3D {
+  // 車流機車：一部分是 foodpanda 外送車（模型載好才會有）
+  const fp = kind === "scooter" ? modelPools.get("foodpanda") : undefined;
+  if (fp && fp.length > 0 && Math.random() < sc.foodpanda.chance) return fp[0].clone(true);
   const pool = modelPools.get(kind);
   if (pool && pool.length > 0) {
     return pool[Math.floor(Math.random() * pool.length)].clone(true);

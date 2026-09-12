@@ -97,6 +97,8 @@ export const TUNING = {
       // 停放機車（gogoro，白車身）的車身色：貼圖上的白色換成這些，一色一款
       parkedColors: [0xffffff, 0x59ffff, 0xffc863, 0x82ff82], // 亮色系：純白、亮藍、亮黃、亮綠
       whiteBand: { maxSat: 0.35, minLight: 0.75 }, // 「白色車身」的判定：彩度低、亮度高（寬一點才吃得到 JPEG 邊緣雜訊）
+      // foodpanda 外送機車（foodpanda.glb，粉紅車身＋騎士＋外送箱）：每台車流機車生成時有這個機率是它
+      foodpanda: { chance: 0.35 },
     },
     car: {
       size: { x: 1.9, y: 1.4, z: 4.2 },
@@ -210,9 +212,13 @@ export const TUNING = {
   resultHoldSeconds: 2.5, // 失敗/通關畫面至少停留幾秒才接受按鍵（期間不顯示「按任意鍵」）
 
   // ── 靜止路障（擋路不致死；「多密、多常違停」由下面的關卡表決定）──
-  // 人行道單顆路障池：色塊（機車堆、攤販…佔位）或一台停放的 Gogoro（沿路停或橫停）
-  sidewalkObstacleSize: { x: 2.2, y: 1.3, z: 2.8 }, // 色塊路障的尺寸
-  sidewalkScooterChance: 0.5, // 單顆路障是停放 Gogoro（而非色塊）的機率
+  // 人行道單顆路障池：一台停放的 Gogoro（沿路停或橫停），或 sidewalkProps 裡的道具模型（依 weight 抽）
+  sidewalkScooterChance: 0.5, // 單顆路障是停放 Gogoro（而非道具）的機率
+  // 道具模型：public/assets/models/props/<名>.glb。size = 模型正面朝 +Z 時的寬×高×深（公尺），
+  // 擺到人行道會轉 90° 讓寬邊沿著路；模型還沒載好時是同尺寸的色塊。要加新道具就多寫一行
+  sidewalkProps: {
+    elecbox: { size: { x: 1.5, y: 1.45, z: 0.96 }, weight: 1 }, // 變電箱
+  } as Record<string, { size: { x: number; y: number; z: number }; weight: number }>,
   obstacleSpawnZ: 96, // 路障生成在前方多遠（比車生成點再遠一點，避免疊到車）
   // 生成點附近有車（同向車、腳踏車）就先不生：縱向多看這麼多餘裕
   // （橫向不加餘裕：加了會伸進隔壁車道，路過的車會一直擋住人行道路障生成）
