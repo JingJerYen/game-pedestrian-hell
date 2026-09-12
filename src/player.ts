@@ -100,8 +100,8 @@ export class Player {
     this.currentAnim = name;
   }
 
-  // dirX：-1 往左、+1 往右、0 不動；dirZ：+1 前進、-1 後退、0 不動（按鍵意圖，
-  // 決定角色面向哪裡）；dz：這一幀世界捲動量（用來同步走路動畫）
+  // dirX：往右的量（-1 ~ 1）；dirZ：往前的量（-1 ~ 1）——世界方向的意圖，可以是小數，
+  // 決定橫移速度比例與角色面向；dz：這一幀世界捲動量（用來同步走路動畫）
   update(
     dt: number,
     dirX: number,
