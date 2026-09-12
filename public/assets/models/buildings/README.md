@@ -1,14 +1,14 @@
 # 路旁建築模型
 
-目前的街屋 `shophouse-1..6.glb` 是程式蓋的塊狀街屋（`src/buildingkit.ts`），用
-`npm run export:buildings` 匯出（每次重新隨機蓋 6 款：樓層、面寬、磁磚色、招牌在哪個角）。
-單位公尺、正面朝 +Z，裡面的 `decal_<槽名>` 網格會在遊戲載入時貼上 `public/assets/decals/` 的 PNG。
-可以拿去 Blender 修改再放回來，只要保留 `decal_*` 的網格名稱貼圖槽就還會作用。
+`shophouse-01..10.glb` 是塊狀街屋，由 `scripts/shophouse/` 產生（不進遊戲，遊戲只用這裡的現成 GLB）：
+- 規格表 `scripts/shophouse/specs.ts`：每款一行（樓層、面寬、磁磚色、招牌在哪個角、橫幅／薄片／直立招牌高度、鐵窗偏移）。
+- 共用尺寸與顏色 `scripts/shophouse/kit.ts` 的 `KIT`。
+- 改完跑 `npm run export:buildings`，GLB 重出（覆蓋）。同一份表永遠出同樣的結果。
+- 每一行多兩個欄位 `store` / `windows` 指定貼哪家店的 PNG（見 public/assets/decals/README.md）；
+  GLB 只記 PNG 路徑不內嵌，同一張圖多棟共用只下載一次。
+- 加第 11 棟：specs.ts 加一行，再到 `src/skins.ts` 的 `BUILDING_MODELS` 把數量改成 11。
 
-其他來源的 GLB（Meshy 等）也能用：放進來、在 `src/skins.ts` 的 `BUILDING_MODELS` 登記
-`{ name: "xxx", height: 13 }`（模型不是公尺就填實際高度，程式縮放；正面不朝 +Z 再填 `rotationY`）。
+GLB 單位公尺、正面朝 +Z。也可以拿去 Blender 修再放回來，但之後別再跑匯出，會被蓋掉。
 
-模型規格：
-- 瘦高盒子：街屋面寬 4～6 m、每層 3.2 m、3～5 層。深度不重要。
-- 左右側牆盡量平（會被鄰居貼住）；底部平的；正面可以凸出招牌、雨遮。
-- 對齊人行道只看離地 2.5 m 以下的牆面輪廓。
+其他來源的 GLB（Meshy 等）也能用：放進來、在 `BUILDING_MODELS` 登記 `{ name: "xxx", height: 13 }`
+（模型不是公尺就填實際高度；正面不朝 +Z 再填 `rotationY`）。

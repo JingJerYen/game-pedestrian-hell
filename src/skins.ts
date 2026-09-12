@@ -5,7 +5,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { TUNING } from "./tuning";
-import { preloadDecals, decalsReady, applyDecals } from "./buildingkit";
+
 
 // ── 斑馬線 ──
 // 現在是一根根白色枕木紋；之後想換整片貼圖，就把 bars 換成一張 PlaneGeometry + map。
@@ -404,14 +404,9 @@ interface BuildingModel {
   rotationY?: number; // 正面轉向 +Z 需要的旋轉（弧度）；正面本來就朝 +Z 就不用填
 }
 const BUILDING_MODELS: BuildingModel[] = [
-  // shophouse-N：buildingkit.ts 蓋的塊狀街屋（npm run export:buildings 匯出），單位公尺、正面 +Z，
-  // 裡面 decal_<槽名> 網格會在載入時貼上 public/assets/decals/ 的 PNG
-  { name: "shophouse-1" },
-  { name: "shophouse-2" },
-  { name: "shophouse-3" },
-  { name: "shophouse-4" },
-  { name: "shophouse-5" },
-  { name: "shophouse-6" },
+  // shophouse-NN：scripts/shophouse 蓋的塊狀街屋（規格表 specs.ts，npm run export:buildings 匯出），
+  // 單位公尺、正面 +Z，店面與招牌的 PNG 以外部檔案掛在 GLB 上（public/assets/decals/）
+  ...Array.from({ length: 10 }, (_, i) => ({ name: `shophouse-${String(i + 1).padStart(2, "0")}` })),
 ];
 const buildingProtos: { scene: THREE.Object3D; cfg: BuildingModel }[] = [];
 let buildingLoadStarted = false;
@@ -434,6 +429,23 @@ function footprintBox(model: THREE.Object3D, maxY: number): THREE.Box3 {
   return box.isEmpty() ? new THREE.Box3().setFromObject(model) : box;
 }
 
+// 多棟 GLB 掛同一張 PNG（例如 7-11 的店面）時，GLTFLoader 每個檔各自建一份貼圖；
+// 這裡依名字（匯出時 name = 檔案路徑）共用同一份，GPU 記憶體不重複
+const sharedTextures = new Map<string, THREE.Texture>();
+function shareTextures(scene: THREE.Object3D): void {
+  scene.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const m = mesh.material as THREE.MeshStandardMaterial;
+    if (!m?.map?.name) return;
+    const shared = sharedTextures.get(m.map.name);
+    if (shared && shared !== m.map) {
+      m.map.dispose();
+      m.map = shared;
+    } else sharedTextures.set(m.map.name, m.map);
+  });
+}
+
 export function preloadBuildingModels(): void {
   if (buildingLoadStarted) return;
   buildingLoadStarted = true;
@@ -442,15 +454,18 @@ export function preloadBuildingModels(): void {
   for (const cfg of BUILDING_MODELS) {
     loader.load(
       `${base}${cfg.name}.glb`,
-      (gltf) => buildingProtos.push({ scene: gltf.scene, cfg }),
+      (gltf) => {
+        shareTextures(gltf.scene);
+        buildingProtos.push({ scene: gltf.scene, cfg });
+      },
       undefined,
       () => console.warn(`建築模型載入失敗：${cfg.name}.glb`),
     );
   }
 }
-// world.ts 用：素材載好了嗎（模型全到了、貼圖槽的 PNG 也載完）——載好整排重蓋一次
+// world.ts 用：模型全到了嗎——載好整排重蓋一次
 export function buildingModelsReady(): boolean {
-  return buildingProtos.length >= BUILDING_MODELS.length && buildingProtos.length > 0 && decalsReady();
+  return buildingProtos.length >= BUILDING_MODELS.length && buildingProtos.length > 0;
 }
 
 // 素色方塊（fallback）：1×1×1 單位方塊，尺寸用 scale 決定
@@ -464,7 +479,6 @@ export interface BuildingParts {
 
 export function makeBuilding(): BuildingParts {
   preloadBuildingModels();
-  preloadDecals();
   const box = new THREE.Mesh(BUILDING_GEO, new THREE.MeshLambertMaterial());
   const root = new THREE.Group();
   root.add(box);
@@ -488,7 +502,6 @@ export function restyleBuilding(b: BuildingParts, facing: 1 | -1): number {
       const raw = new THREE.Box3().setFromObject(inner);
       inner.scale.setScalar(proto.cfg.height / (raw.max.y - raw.min.y));
     }
-    applyDecals(inner); // 貼圖槽貼上隨機 PNG（每棟不同）
     const model = new THREE.Group();
     model.add(inner);
     model.rotation.y = facing === 1 ? Math.PI / 2 : -Math.PI / 2; // +Z 正面轉向馬路

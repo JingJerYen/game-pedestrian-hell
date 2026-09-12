@@ -68,28 +68,6 @@ export const TUNING = {
     depthMin: 6, // 往後延伸的深度（玩家看不太到，隨便）
     depthMax: 10,
   },
-  // ── 程式蓋的塊狀街屋（buildingkit.ts）：尺寸單位公尺 ──
-  shophouse: {
-    floorsMin: 3,
-    floorsMax: 5,
-    widthMin: 4.5, // 面寬
-    widthMax: 6,
-    depth: 8,
-    arcadeDepth: 1.6, // 一樓騎樓內縮多深
-    pillar: 0.45, // 騎樓柱子寬
-    bannerH: 1.0, // 橫幅招牌板高度
-    bannerT: 0.12, // 橫幅招牌板凸出多少
-    cube: 1.0, // 方塊招牌邊長
-    vsign: { thick: 0.25, height: 3.6, depth: 0.9 }, // 直立長條招牌：厚度、高度、凸出牆面多少
-    cage: { w: 1.3, h: 1.5, out: 0.4 }, // 鐵窗方塊：寬、高、凸出多少
-    tank: { r: 0.6, h: 1.2, base: 0.7, baseH: 0.8 }, // 水塔：半徑、高、方柱邊長、方柱高
-    wallColors: [0xd9cdb4, 0xc4b295, 0xa9b3a2, 0xd3c2bd, 0xb5b5b5, 0xe2dbcd, 0x9c8b76], // 牆面磁磚色
-    trimColor: 0x6b6560, // 樓板線／水塔座
-    cageColor: 0x555a60, // 鐵窗方塊
-    signBoxColor: 0xf5f5f5, // 招牌板／方塊／長條的底色（貼圖蓋在上面）
-    tankColor: 0xc8ccd0, // 不鏽鋼水塔
-  },
-
   // ── 玩家移動 ──
   walkSpeed: 4.2, // 按住 ↑ 的前進速度（公尺/秒）
   backSpeed: 2.6, // 按住 ↓ 的後退速度
