@@ -135,7 +135,10 @@ export const TUNING = {
     speedMin: 2.5, // 比行人快一點點的悠哉速度
     speedMax: 4.5,
     wander: 0.8, // 在人行道上偏來偏去的幅度
-    colors: [0x2e7d5b, 0x8a4baf, 0xc2564b, 0x4a6fa5],
+    colors: [0x2e7d5b, 0x8a4baf, 0xc2564b, 0x4a6fa5], // 沒模型時色塊的顏色
+    // 騎士衣服顏色：ubike 模型載入時把貼圖上的淺藍衣服換成這些，一色一款（車身黃色不動）
+    riderColors: [0x6fa8dc, 0xe05a5a, 0x3f8f5a, 0x333338, 0xf2f2f2, 0xe8a33c, 0x8a4baf],
+    riderBand: { hueMin: 190, hueMax: 250, minSat: 0.2 }, // 「淺藍衣服」的判定（色相範圍、彩度下限）
     mergeLook: 8, // 人行道前方這麼近有路障就切到路邊車道
     returnLook: 12, // 在車道上時，人行道前方這麼遠都乾淨才切回去（要比 mergeLook 大，才不會來回抖）
     stopGap: 2.5, // 切不出去（車道有車或違停）時，離路障這麼近就煞停等

@@ -4,7 +4,7 @@
 // 每種車有一個「款式池」（轎車/計程車/警車…），生成時隨機抽一款，
 // 街景自動有變化。模型會等比縮放到 tuning.ts 碰撞箱的長度、貼齊地面，
 // 所以視覺跟判定永遠對得上。Kenney 模型車頭朝 +Z，跟迎面車朝向一致。
-// 還沒有模型的車種（bike）自動用純色方塊，補上 glb 就換。
+// 沒有模型的車種自動用純色方塊，補上 glb 就換。
 // 機車的車身（motor1 紅、gogoro 白）在載入時換成多種顏色，一色一款（recolorVariants）。
 
 import * as THREE from "three";
@@ -29,13 +29,16 @@ const MODEL_VARIANTS: Record<string, string[]> = {
   scooter: ["motor1"],
   // 停放機車（機車格、人行道路障）：gogoro（白車身），白色換成 scooter.parkedColors，一色一款
   parkedScooter: ["gogoro"],
+  // 人行道腳踏車：ubike（YouBike 含騎士），騎士衣服換成 bike.riderColors，一色一款
+  bike: ["ubike"],
 };
-// 車頭不是朝 +Z 的模型，載入時先繞 Y 軸轉正（弧度）。motor1 車頭朝 +X → -90°；gogoro 朝 -X → +90°
+// 車頭不是朝 +Z 的模型，載入時先繞 Y 軸轉正（弧度）。motor1 車頭朝 +X → -90°；gogoro / ubike 朝 -X → +90°
 const MODEL_ROTATION_Y: Record<string, number> = {
   motor1: -Math.PI / 2,
   gogoro: Math.PI / 2,
+  ubike: Math.PI / 2,
 };
-// 車身換色設定：哪些像素算「車身」（用 HSL 判定）、要換成哪些顏色
+// 換色設定：哪些像素要換（用 HSL 判定：車身或騎士衣服）、要換成哪些顏色
 const sc = TUNING.vehicles.scooter;
 const RECOLOR: Record<string, { colors: readonly number[]; isBody: (h: number, s: number, l: number) => boolean }> = {
   motor1: {
@@ -47,6 +50,14 @@ const RECOLOR: Record<string, { colors: readonly number[]; isBody: (h: number, s
   gogoro: {
     colors: sc.parkedColors,
     isBody: (_h, s, l) => s < sc.whiteBand.maxSat && l > sc.whiteBand.minLight,
+  },
+  ubike: {
+    // 換的是騎士的衣服（淺藍），車身黃色不動
+    colors: TUNING.bike.riderColors,
+    isBody: (h, s) => {
+      const b = TUNING.bike.riderBand;
+      return s >= b.minSat && h >= b.hueMin && h <= b.hueMax;
+    },
   },
 };
 
