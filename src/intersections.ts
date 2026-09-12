@@ -14,13 +14,13 @@ import {
   WALK_MIN_X,
   WALK_MAX_X,
   hasSidewalk,
-  buildingLineX,
   type LevelConfig,
 } from "./tuning";
 import {
   makeZebraAcross,
   makeZebraForward,
   makeTrafficLight,
+  updateSignals,
   makeScooterBox,
   makeStopLine,
 } from "./skins";
@@ -44,14 +44,18 @@ export class Intersections {
 
   constructor(private readonly scene: THREE.Scene) {}
 
+  // timeLeft / dt：行人燈的倒數數字與小綠人動畫（skins.updateSignals）
   // onSpawn：路口生成時回呼（main.ts 用它清掉撞到路口的路障）
   update(
     dz: number,
+    dt: number,
+    timeLeft: number,
     maxDist: number,
     level: LevelConfig,
     onSpawn: (centerZ: number) => void,
   ): void {
     const t = TUNING.intersection;
+    updateSignals(timeLeft, dt);
     for (let i = this.list.length - 1; i >= 0; i--) {
       const group = this.list[i];
       group.position.z += dz;
@@ -93,9 +97,10 @@ export class Intersections {
     if (hasSidewalk("left")) group.add(makeZebraForward(colX(0), depth));
     if (hasSidewalk("right")) group.add(makeZebraForward(colX(RIGHT_SIDEWALK_COL), depth));
 
-    // 行人紅綠燈（永遠綠燈）：立在路口「對面」兩角——過馬路時正對著你，
-    // 跟現實一樣（行人燈在你要走去的那一頭）。貼著建築前緣那條線
-    for (const x of [buildingLineX("left") - 0.4, buildingLineX("right") + 0.4]) {
+    // 號誌桿＋行人燈（永遠綠燈，上格倒數＝本關剩餘秒數）：立在路口「對面」兩角的路緣——
+    // 過馬路時正對著你，跟現實一樣（行人燈在你要走去的那一頭）。橫臂一半伸到馬路上、一半在人行道上
+    const fromCurb = TUNING.signal.poleFromCurb;
+    for (const x of [ROAD_LEFT - fromCurb, BG_RIGHT + fromCurb]) {
       const light = makeTrafficLight();
       light.position.set(x, 0, -(depth / 2 + 0.6));
       group.add(light);

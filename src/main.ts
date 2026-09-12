@@ -268,7 +268,7 @@ renderer.setAnimationLoop(() => {
     dz = Math.max(dz, -position); // 不能退到起點之前
     dz = obstacles.clampScroll(player.mesh.position, player.size, dz); // 被路障擋住
 
-    intersections.update(dz, maxDistance, lv, (z) =>
+    intersections.update(dz, dt, timeLeft, maxDistance, lv, (z) =>
       obstacles.removeNear(z, TUNING.intersection.roadDepth / 2 + 2),
     );
     destination.update(dz, position, lv);

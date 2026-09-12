@@ -160,31 +160,161 @@ export function makeRoadMark(label: string): THREE.Mesh {
   return mark;
 }
 
-// ── 紅綠燈 ──
-// placeholder：柱子＋燈箱，永遠亮綠燈（本遊戲的規則）。之後換 sprite/模型就改這裡。
-const POLE_GEO = new THREE.CylinderGeometry(0.07, 0.07, 3.6, 8);
+// ── 行人紅綠燈（台灣式）──
+// 燈箱兩格：上格倒數數字（LED 點陣、綠色）、下格小綠人走路。永遠綠燈（本遊戲的規則）。
+// 數字 = 本關剩餘秒數（main.ts 的 timeLeft，經 intersections.update 傳進 updateSignals），最多顯示 99。
+// 所有路口的燈共用同一張數字貼圖和同一格小綠人：canvas 一秒只重畫一次，小綠人只改 UV 偏移。
+// 小綠人的圖：public/assets/decals/signals/greenman.png——橫排 TUNING.signal.greenmanFrames 格、
+// 純黑底綠色人形、朝右走；檔案不在就用下面程式畫的火柴人頂著。倒數最後幾秒走得更快。
+// 桿子：使用者的 trafficlight.glb（桿＋兩組車用燈頭＋路名牌，正面朝 +Z），縮到 poleHeight、底貼地；
+// 模型還沒載好時用一根圓柱頂著。行人燈箱是程式蓋的黑盒＋兩片面板，掛在桿子正面 headHeight 高
+const SIG = TUNING.signal;
+const POLE_GEO = new THREE.CylinderGeometry(0.07, 0.07, SIG.poleHeight, 8);
 const POLE_MAT = new THREE.MeshLambertMaterial({ color: 0x55595f });
-const HEAD_GEO = new THREE.BoxGeometry(0.42, 1.05, 0.3);
+const HEAD_GEO = new THREE.BoxGeometry(0.46, 1.0, 0.3);
 const HEAD_MAT = new THREE.MeshLambertMaterial({ color: 0x2c2f33 });
-const LAMP_GEO = new THREE.CircleGeometry(0.11, 12);
-const LAMP_MATS = [0x661111, 0x665511, 0x2ecc40].map(
-  (color) => new THREE.MeshBasicMaterial({ color }), // 紅黃暗、綠恆亮
+const PANEL_GEO = new THREE.PlaneGeometry(0.36, 0.36);
+let poleProto: THREE.Object3D | null = null;
+new GLTFLoader().load(
+  `${import.meta.env.BASE_URL}assets/models/props/trafficlight.glb`,
+  (gltf) => {
+    const scene = gltf.scene;
+    const box = new THREE.Box3().setFromObject(scene);
+    const scale = SIG.poleHeight / (box.max.y - box.min.y);
+    scene.scale.setScalar(scale);
+    scene.position.set(-(box.min.x + box.max.x) / 2 * scale, -box.min.y * scale, -(box.min.z + box.max.z) / 2 * scale);
+    poleProto = scene;
+  },
+  undefined,
+  () => console.warn("號誌桿模型載入失敗：trafficlight.glb"),
 );
+const LED_GREEN = "#3cff66";
+
+// 上格：數字。先把兩位數用字型畫到 16×16 的小 canvas，再把亮的格子畫成圓點 → LED 點陣感
+const DIGIT_GRID = 16;
+const DIGIT_LOWRES = document.createElement("canvas");
+DIGIT_LOWRES.width = DIGIT_LOWRES.height = DIGIT_GRID;
+const DIGIT_CANVAS = document.createElement("canvas");
+DIGIT_CANVAS.width = DIGIT_CANVAS.height = DIGIT_GRID * 8;
+const DIGIT_TEX = new THREE.CanvasTexture(DIGIT_CANVAS);
+DIGIT_TEX.colorSpace = THREE.SRGBColorSpace;
+const DIGIT_MAT = new THREE.MeshBasicMaterial({ map: DIGIT_TEX }); // 自發光，不受燈光影響
+let shownDigits = -1;
+function drawDigits(n: number): void {
+  const lc = DIGIT_LOWRES.getContext("2d")!;
+  lc.clearRect(0, 0, DIGIT_GRID, DIGIT_GRID);
+  lc.fillStyle = "#fff";
+  lc.font = "bold 13px sans-serif";
+  lc.textAlign = "center";
+  lc.textBaseline = "middle";
+  lc.fillText(String(n).padStart(2, "0"), DIGIT_GRID / 2, DIGIT_GRID / 2 + 0.5);
+  const px = lc.getImageData(0, 0, DIGIT_GRID, DIGIT_GRID).data;
+  const c = DIGIT_CANVAS.getContext("2d")!;
+  c.fillStyle = "#000";
+  c.fillRect(0, 0, DIGIT_CANVAS.width, DIGIT_CANVAS.height);
+  c.fillStyle = LED_GREEN;
+  const cell = DIGIT_CANVAS.width / DIGIT_GRID;
+  for (let y = 0; y < DIGIT_GRID; y++) {
+    for (let x = 0; x < DIGIT_GRID; x++) {
+      if (px[(y * DIGIT_GRID + x) * 4 + 3] < 100) continue;
+      c.beginPath();
+      c.arc(x * cell + cell / 2, y * cell + cell / 2, cell * 0.4, 0, Math.PI * 2);
+      c.fill();
+    }
+  }
+  DIGIT_TEX.needsUpdate = true;
+}
+
+// 下格：小綠人。placeholder = 程式畫的火柴人走路循環（黑底綠線），橫排 greenmanFrames 格；
+// greenman.png 載得到就整張換掉（同樣切成 greenmanFrames 格）
+function drawPlaceholderGreenman(): HTMLCanvasElement {
+  const F = SIG.greenmanFrames;
+  const S = 64;
+  const cv = document.createElement("canvas");
+  cv.width = S * F;
+  cv.height = S;
+  const c = cv.getContext("2d")!;
+  c.fillStyle = "#000";
+  c.fillRect(0, 0, cv.width, S);
+  c.strokeStyle = LED_GREEN;
+  c.fillStyle = LED_GREEN;
+  c.lineWidth = 5;
+  c.lineCap = "round";
+  for (let i = 0; i < F; i++) {
+    const ox = i * S + S / 2;
+    const ph = (i / F) * Math.PI * 2; // 走路相位
+    const swing = Math.sin(ph) * 0.55;
+    c.beginPath();
+    c.arc(ox, 12, 6, 0, Math.PI * 2); // 頭
+    c.fill();
+    c.beginPath();
+    c.moveTo(ox, 18);
+    c.lineTo(ox, 36); // 身體
+    c.moveTo(ox, 22);
+    c.lineTo(ox + Math.sin(ph) * 12, 32); // 手
+    c.moveTo(ox, 22);
+    c.lineTo(ox - Math.sin(ph) * 12, 32);
+    c.moveTo(ox, 36);
+    c.lineTo(ox + swing * 16 + 4, 54); // 腳（多開 4px，腳併攏那格才不會變一根棍子）
+    c.moveTo(ox, 36);
+    c.lineTo(ox - swing * 16 - 4, 54);
+    c.stroke();
+  }
+  return cv;
+}
+function setupGreenmanTexture(tex: THREE.Texture): void {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.repeat.set(1 / SIG.greenmanFrames, 1);
+  tex.magFilter = THREE.NearestFilter; // 點陣感；圖如果很細緻可以拿掉
+}
+const GREENMAN_MAT = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(drawPlaceholderGreenman()) });
+setupGreenmanTexture(GREENMAN_MAT.map!);
+new THREE.TextureLoader().load(
+  `${import.meta.env.BASE_URL}assets/decals/signals/greenman.png`,
+  (tex) => {
+    setupGreenmanTexture(tex);
+    GREENMAN_MAT.map = tex;
+    GREENMAN_MAT.needsUpdate = true;
+  },
+  undefined,
+  () => {}, // 沒圖 = 用火柴人，正常
+);
+let walkClock = 0;
 
 export function makeTrafficLight(): THREE.Group {
   const group = new THREE.Group();
-  const pole = new THREE.Mesh(POLE_GEO, POLE_MAT);
-  pole.position.y = 1.8;
-  group.add(pole);
+  if (poleProto) group.add(poleProto.clone(true));
+  else {
+    const pole = new THREE.Mesh(POLE_GEO, POLE_MAT);
+    pole.position.y = SIG.poleHeight / 2;
+    group.add(pole);
+  }
+  // 行人燈箱：貼在桿子正面（桿半徑約 0.1）
+  const headZ = 0.1 + 0.15;
+  const y = SIG.headHeight;
   const head = new THREE.Mesh(HEAD_GEO, HEAD_MAT);
-  head.position.y = 3.9;
+  head.position.set(0, y, headZ);
   group.add(head);
-  LAMP_MATS.forEach((mat, i) => {
-    const lamp = new THREE.Mesh(LAMP_GEO, mat);
-    lamp.position.set(0, 4.22 - i * 0.32, 0.16); // 面向鏡頭（+Z）
-    group.add(lamp);
-  });
+  const digits = new THREE.Mesh(PANEL_GEO, DIGIT_MAT);
+  digits.position.set(0, y + 0.26, headZ + 0.151); // 面向鏡頭（+Z）
+  group.add(digits);
+  const man = new THREE.Mesh(PANEL_GEO, GREENMAN_MAT);
+  man.position.set(0, y - 0.22, headZ + 0.151);
+  group.add(man);
   return group;
+}
+
+// 每幀呼叫（intersections.update）：數字 = 剩餘秒數，小綠人走路格數依剩餘秒數決定快慢
+export function updateSignals(timeLeft: number, dt: number): void {
+  const n = THREE.MathUtils.clamp(Math.ceil(timeLeft), 0, 99);
+  if (n !== shownDigits) {
+    shownDigits = n;
+    drawDigits(n);
+  }
+  walkClock += dt * (timeLeft < SIG.hurryBelow ? SIG.hurryFps : SIG.walkFps);
+  const frame = Math.floor(walkClock) % SIG.greenmanFrames;
+  GREENMAN_MAT.map!.offset.x = frame / SIG.greenmanFrames;
 }
 
 // ── 機車停等區（路口斑馬線前的白框格）──

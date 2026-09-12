@@ -208,6 +208,18 @@ export const TUNING = {
   // ── 命 ──
   maxHearts: 3, // 失敗扣一條，用完從第一關重來
 
+  // ── 行人紅綠燈（台灣式：上格倒數數字、下格小綠人；永遠綠燈）──
+  // 數字 = 本關剩餘秒數（跟 HUD 同一個計時器），超過 99 就顯示 99
+  signal: {
+    poleHeight: 5.2, // 號誌桿模型（models/props/trafficlight.glb：桿＋車用燈頭＋路名牌）的實際高度（公尺）
+    poleFromCurb: 0.35, // 桿子立在人行道上、離路緣多遠
+    headHeight: 2.8, // 行人燈箱（兩格面板）中心離地多高，掛在桿子正面
+    greenmanFrames: 8, // 小綠人 sprite sheet 橫排幾格（public/assets/decals/signals/greenman.png）
+    walkFps: 4, // 小綠人平常每秒走幾格
+    hurryFps: 10, // 倒數最後幾秒走快（跟真的一樣）
+    hurryBelow: 10, // 剩幾秒以下開始走快
+  },
+
   // ── 結算畫面 ──
   resultHoldSeconds: 2.5, // 失敗/通關畫面至少停留幾秒才接受按鍵（期間不顯示「按任意鍵」）
 
