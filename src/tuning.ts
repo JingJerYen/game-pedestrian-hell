@@ -86,6 +86,8 @@ export const TUNING = {
       wander: 0.7,
       // 車身顏色：motor1 模型載入時把貼圖上的紅色車身換成這些色（vehicleskins.ts 換色）
       colors: [0xd23b3b, 0x333338, 0xf2f2f2, 0x8a8f96], // 紅、黑、白、銀
+      // 停放機車（Gogoro，沒騎士，只當停車格裡的車）車身色：白色部位染色
+      gogoroColors: [0xffffff, 0x59ffff, 0xffc863, 0x82ff82], // 亮色系：純白、亮藍、亮黃、亮綠
       // 騎士衣服顏色：貼圖上的藍色衣服換成這些
       riderColors: [0x2f6fb5, 0x333338, 0xe8e8e8, 0x7a4b9c, 0x3f8f5a, 0xc9752c, 0x8f6b4e],
       recolorVariants: 8, // 一次生出幾款配色（車身依序輪、衣服隨機配）
@@ -199,7 +201,9 @@ export const TUNING = {
   resultHoldSeconds: 2.5, // 失敗/通關畫面至少停留幾秒才接受按鍵（期間不顯示「按任意鍵」）
 
   // ── 靜止路障（擋路不致死；「多密、多常違停」由下面的關卡表決定）──
-  sidewalkObstacleSize: { x: 2.2, y: 1.3, z: 2.8 }, // 人行道路障（機車堆、攤販…）
+  // 人行道單顆路障池：色塊（機車堆、攤販…佔位）或一台停放的 Gogoro（沿路停或橫停）
+  sidewalkObstacleSize: { x: 2.2, y: 1.3, z: 2.8 }, // 色塊路障的尺寸
+  sidewalkScooterChance: 0.5, // 單顆路障是停放 Gogoro（而非色塊）的機率
   obstacleSpawnZ: 96, // 路障生成在前方多遠（比車生成點再遠一點，避免疊到車）
   // 生成點附近有車（同向車、腳踏車）就先不生：縱向多看這麼多餘裕
   // （橫向不加餘裕：加了會伸進隔壁車道，路過的車會一直擋住人行道路障生成）
@@ -220,7 +224,9 @@ export const TUNING = {
         stallsMin: 6,
         stallsMax: 12, // 段長 6~12 公尺（格數每段隨機抽）
         occupancy: 0.8, // 每格停著車的機率（空格可以走過去）
-        blockSize: { x: 3.2, y: 1.1, z: 0.8 }, // 一整排橫停機車，填滿格寬 → 人行道封死
+        // 一格一台橫停的 Gogoro（模型 gogoro.glb，車身長 2.2 橫跨人行道）：
+        // 兩側各剩 0.6 的縫，行人（寬 0.8）擠不過去 → 人行道還是封死，但看起來合理
+        blockSize: { x: 2.2, y: 1.1, z: 0.8 },
       },
       car: {
         stripWidth: 3.4,

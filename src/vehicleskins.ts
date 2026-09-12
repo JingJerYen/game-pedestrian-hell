@@ -24,13 +24,37 @@ const MODEL_VARIANTS: Record<string, string[]> = {
     "police",
   ],
   truck: ["truck", "truck-flat", "delivery", "garbage-truck"],
-  // 機車：Tripo 生成的紅色速克達（含騎士）。只給車流用——上面有人，不能拿去當停車格的機車
+  // 車流機車：motor1 = Tripo 生成的速克達（含騎士）。只給車流用——上面有人，不當停放的車
   scooter: ["motor1"],
+  // 停放機車（機車停車格裡的）：gogoro = Meshy 生成的 Gogoro，沒騎士。頂點色輪胎/座椅黑、
+  // 其餘白，靠 MODEL_TINT 染成各種車身色。車頭朝 +Z 版本，obstacles.ts 擺的時候轉成橫停
+  parkedScooter: ["gogoro"],
 };
-// 車頭不是朝 +Z 的模型，載入時先繞 Y 軸轉正（弧度）。motor1 車頭朝 +X → 轉 -90°
+// 車頭不是朝 +Z 的模型，載入時先繞 Y 軸轉正（弧度）。motor1 車頭朝 +X → -90°；gogoro 朝 -X → +90°
 const MODEL_ROTATION_Y: Record<string, number> = {
   motor1: -Math.PI / 2,
+  gogoro: Math.PI / 2,
 };
+// 模型染色：頂點色是白色的部位會被染成調色盤的顏色（黑色部位不受影響），每個顏色一款
+const MODEL_TINT: Record<string, readonly number[]> = {
+  gogoro: TUNING.vehicles.scooter.gogoroColors,
+};
+
+// 把一個模型原型變成多款染色的原型（材質 clone 後設 color；幾何共用）
+function tintVariants(proto: THREE.Object3D, colors: readonly number[]): THREE.Object3D[] {
+  return colors.map((hex) => {
+    const variant = proto.clone(true);
+    variant.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const m = (mesh.material as THREE.MeshStandardMaterial).clone();
+      m.color.set(hex);
+      m.roughness = 0.45; // 烤漆感：預設 1.0 太霧，顏色會顯得髒
+      mesh.material = m;
+    });
+    return variant;
+  });
+}
 
 // 模型換色：貼圖上某個色相帶的像素（例如紅色車身、藍色衣服）換成調色盤的顏色，
 // 保留原本的明暗變化，一次生出多款配色的原型。只處理 baseColor 貼圖，法線/粗糙度共用。
@@ -180,6 +204,11 @@ const boxGeometries = new Map<string, THREE.BoxGeometry>();
 
 function sizeOf(kind: string): Size3 {
   if (kind === "bike") return TUNING.bike.size;
+  if (kind === "parkedScooter") {
+    // 停放機車：模型以「車頭朝 +Z」規格化，長度 = 停車格 blockSize 的 x（擺的時候會轉 90°）
+    const b = TUNING.parking.types.scooter.blockSize;
+    return { x: b.z, y: b.y, z: b.x };
+  }
   return TUNING.vehicles[kind as keyof typeof TUNING.vehicles].size;
 }
 
@@ -204,7 +233,9 @@ export function preloadVehicleSkins(): void {
           let pool = modelPools.get(kind);
           if (!pool) modelPools.set(kind, (pool = []));
           const recolor = MODEL_RECOLOR[name];
+          const tint = MODEL_TINT[name];
           if (recolor) pool.push(...recolorVariants(proto, recolor));
+          else if (tint) pool.push(...tintVariants(proto, tint));
           else pool.push(proto);
         },
         undefined,

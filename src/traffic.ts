@@ -126,16 +126,17 @@ export class Traffic {
         if (car.bike) {
           this.steerBike(car, dt, obstacles, centers);
         } else if (car.dir === -1 && t.bgLanes >= 2) {
-          // 同向車追上違停就往內側（-X）繞（同側只有一線時沒有內側可繞——那側也不會放違停）
-          const want = obstacles.hasObstacleAhead(
+          // 同向車追上違停就往內側（-X）繞（同側只有一線時沒有內側可繞——那側也不會放違停）；
+          // 繞出去之後，路邊車道上正好有腳踏車跟我並排就先別切回去（會壓到它）
+          const blocked = obstacles.hasObstacleAhead(
             car.baseX,
             car.size.x / 2,
             p.z,
             t.avoidLookAhead,
             car.dir,
-          )
-            ? -t.laneWidth
-            : 0;
+          );
+          const holdOut = car.avoid < -0.3 && this.bikeBeside(car);
+          const want = blocked || holdOut ? -t.laneWidth : 0;
           car.avoid = THREE.MathUtils.damp(car.avoid, want, 3, dt);
           p.x = car.baseX + car.avoid;
         }
@@ -275,11 +276,26 @@ export class Traffic {
     const z = self.mesh.position.z;
     return this.cars.some((o) => {
       if (o === self || o.mode !== "straight") return false;
-      if (Math.abs(this.followX(o) - targetX) >= xRange) return false;
+      // 汽車暫時閃到內側（等下會切回自己的車道）也算在它原本的車道上
+      const dx = Math.min(
+        Math.abs(this.followX(o) - targetX),
+        o.bike ? Infinity : Math.abs(o.baseX - targetX),
+      );
+      if (dx >= xRange) return false;
       const ahead = (o.mesh.position.z - z) * self.dir;
       const overlap = (o.size.z + self.size.z) / 2 + 1;
       if (Math.abs(ahead) < overlap) return true;
       return ahead < 0 && -ahead < b.mergeClearBehind && o.effSpeed > self.speed;
+    });
+  }
+
+  // 汽車用：自己原本的車道上，有沒有（在馬路上的）腳踏車跟我前後重疊——切回去會壓到
+  private bikeBeside(car: Car): boolean {
+    const z = car.mesh.position.z;
+    return this.cars.some((o) => {
+      if (!o.bike || o.mode !== "straight" || !this.onRoad(o)) return false;
+      if (Math.abs(this.followX(o) - car.baseX) >= TUNING.laneWidth * 0.7) return false;
+      return Math.abs(o.mesh.position.z - z) < (car.size.z + o.size.z) / 2 + 1.5;
     });
   }
 

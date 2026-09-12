@@ -112,6 +112,19 @@ export class Obstacles {
     if (sides.length === 0) return { ok: false, retryAfter: 4 };
     const col = sides[Math.floor(Math.random() * sides.length)];
     if (Math.random() < t.parking.chance) return this.spawnParking(col, occupied);
+    if (Math.random() < t.sidewalkScooterChance) {
+      // 路障池：一台亂停在人行道上的 Gogoro——沿路停（只擋半邊，繞得過）或橫停（擋住整條）
+      const b = t.parking.types.scooter.blockSize; // x 長 z 窄 = 橫停
+      const across = Math.random() < 0.5;
+      const size: Size3 = across ? b : { x: b.z, y: b.y, z: b.x };
+      const blocked = this.canPlace(col, size.z / 2, occupied);
+      if (blocked) return blocked;
+      const rot = across
+        ? (Math.random() < 0.5 ? 1 : -1) * (Math.PI / 2)
+        : Math.random() < 0.5 ? 0 : Math.PI;
+      this.addParkedScooter(col, colX(col), z, size, rot);
+      return { ok: true, extraGap: 0 };
+    }
     const halfLen = t.sidewalkObstacleSize.z / 2;
     const blocked = this.canPlace(col, halfLen, occupied);
     if (blocked) return blocked;
@@ -204,14 +217,13 @@ export class Obstacles {
           Math.random() < 0.5 ? 0 : Math.PI,
         );
       } else {
-        // 機車格：維持方塊。車流的機車模型（motor1）上面有騎士，不能拿來當停著的車；
-        // 等有「沒人的停放機車」模型再換
-        this.addBlock(
+        // 機車格：一格一台橫停的 Gogoro（車頭隨機朝建築或朝馬路），缺模型時退回色塊
+        this.addParkedScooter(
           col,
           stripX,
           stallZ,
           p.blockSize,
-          SIDEWALK_COLORS[Math.floor(Math.random() * SIDEWALK_COLORS.length)],
+          (Math.random() < 0.5 ? 1 : -1) * (Math.PI / 2),
         );
       }
     }
@@ -229,6 +241,15 @@ export class Obstacles {
     const color =
       PARKED_CAR_COLORS[Math.floor(Math.random() * PARKED_CAR_COLORS.length)];
     const mesh = makeVehicleMesh("car", color);
+    mesh.position.set(x, size.y / 2, z);
+    mesh.rotation.y = rotationY;
+    this.scene.add(mesh);
+    this.list.push({ mesh, size, col });
+  }
+
+  // 停放的機車：模型車頭朝 +Z，rotationY = ±90° 橫停（碰撞箱 x 長 z 窄）、0/180° 沿路停
+  private addParkedScooter(col: number, x: number, z: number, size: Size3, rotationY: number): void {
+    const mesh = makeVehicleMesh("parkedScooter", 0xdddddd);
     mesh.position.set(x, size.y / 2, z);
     mesh.rotation.y = rotationY;
     this.scene.add(mesh);
