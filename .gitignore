@@ -4,3 +4,4 @@ dist/
 *.swp
 # 素材原始包（挑出來的模型已進 public/assets/，原始 zip 不進版控）
 *.zip
+scripts/dist/

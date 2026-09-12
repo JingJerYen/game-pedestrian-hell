@@ -5,6 +5,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { TUNING } from "./tuning";
+import { preloadDecals, decalsReady, applyDecals } from "./buildingkit";
 
 // ── 斑馬線 ──
 // 現在是一根根白色枕木紋；之後想換整片貼圖，就把 bars 換成一張 PlaneGeometry + map。
@@ -390,15 +391,29 @@ export function makeGround(size: number): THREE.Mesh {
 }
 
 // ── 路旁建築（連棟街屋）──
-// 有模型就用模型：把 GLB 放進 public/assets/models/buildings/，檔名加進 BUILDING_MODELS，
+// 有模型就用模型：把 GLB 放進 public/assets/models/buildings/，在 BUILDING_MODELS 登記，
 // 每棟隨機抽一款，面寬用模型的實際寬度，一棟接一棟排。
-// 模型規格：單位公尺（街屋面寬約 4~6、一層樓約 3.2）；正面朝 +Z（跟 Kenney 一樣）；
-// 原點位置不拘，程式會自動把「底部貼地、正面貼齊人行道、面寬置中」。
+// 模型（Meshy 輸出）的尺寸是正規化的，不是公尺：登記時填實際高度（公尺），程式等比縮放。
+// rotationY = 正面不是朝 +Z 時要先轉幾度（弧度）。
+// 原點位置不拘，程式會自動把「底部貼地、正面貼齊人行道、面寬置中」（對齊只看離地
+// 2.5 m 以下的牆面輪廓，招牌、雨遮凸出去沒關係）。
 // 還沒放模型（或還沒載好）就用素色方塊撐著，載好會自動全部換掉。
-const BUILDING_MODELS: string[] = [
-  // "shophouse-a", "shophouse-b", ...  ← 放好 glb 之後把檔名（不含 .glb）加在這裡
+interface BuildingModel {
+  name: string; // 檔名（不含 .glb）
+  height?: number; // 實際高度（公尺），例如 4 層樓 ≈ 13。模型本身就是公尺（例如自己匯出的）就不填
+  rotationY?: number; // 正面轉向 +Z 需要的旋轉（弧度）；正面本來就朝 +Z 就不用填
+}
+const BUILDING_MODELS: BuildingModel[] = [
+  // shophouse-N：buildingkit.ts 蓋的塊狀街屋（npm run export:buildings 匯出），單位公尺、正面 +Z，
+  // 裡面 decal_<槽名> 網格會在載入時貼上 public/assets/decals/ 的 PNG
+  { name: "shophouse-1" },
+  { name: "shophouse-2" },
+  { name: "shophouse-3" },
+  { name: "shophouse-4" },
+  { name: "shophouse-5" },
+  { name: "shophouse-6" },
 ];
-const buildingProtos: THREE.Object3D[] = [];
+const buildingProtos: { scene: THREE.Object3D; cfg: BuildingModel }[] = [];
 let buildingLoadStarted = false;
 const BUILDING_FOOTPRINT_HEIGHT = 2.5; // 對齊人行道時只看離地這麼高以內的牆面輪廓
 
@@ -424,17 +439,18 @@ export function preloadBuildingModels(): void {
   buildingLoadStarted = true;
   const loader = new GLTFLoader();
   const base = `${import.meta.env.BASE_URL}assets/models/buildings/`;
-  for (const name of BUILDING_MODELS) {
+  for (const cfg of BUILDING_MODELS) {
     loader.load(
-      `${base}${name}.glb`,
-      (gltf) => buildingProtos.push(gltf.scene),
+      `${base}${cfg.name}.glb`,
+      (gltf) => buildingProtos.push({ scene: gltf.scene, cfg }),
       undefined,
-      () => console.warn(`建築模型載入失敗：${name}.glb`),
+      () => console.warn(`建築模型載入失敗：${cfg.name}.glb`),
     );
   }
 }
+// world.ts 用：素材載好了嗎（模型全到了、貼圖槽的 PNG 也載完）——載好整排重蓋一次
 export function buildingModelsReady(): boolean {
-  return buildingProtos.length > 0;
+  return buildingProtos.length >= BUILDING_MODELS.length && buildingProtos.length > 0 && decalsReady();
 }
 
 // 素色方塊（fallback）：1×1×1 單位方塊，尺寸用 scale 決定
@@ -448,6 +464,7 @@ export interface BuildingParts {
 
 export function makeBuilding(): BuildingParts {
   preloadBuildingModels();
+  preloadDecals();
   const box = new THREE.Mesh(BUILDING_GEO, new THREE.MeshLambertMaterial());
   const root = new THREE.Group();
   root.add(box);
@@ -464,9 +481,17 @@ export function restyleBuilding(b: BuildingParts, facing: 1 | -1): number {
   if (buildingProtos.length > 0) {
     b.box.visible = false;
     const proto = buildingProtos[Math.floor(Math.random() * buildingProtos.length)];
-    const model = proto.clone(); // 幾何與材質共用，clone 很便宜
+    const inner = proto.scene.clone(); // 幾何與材質共用，clone 很便宜
+    // 先把模型轉成正面朝 +Z、縮放到實際高度，再整個轉向馬路
+    inner.rotation.y = proto.cfg.rotationY ?? 0;
+    if (proto.cfg.height) {
+      const raw = new THREE.Box3().setFromObject(inner);
+      inner.scale.setScalar(proto.cfg.height / (raw.max.y - raw.min.y));
+    }
+    applyDecals(inner); // 貼圖槽貼上隨機 PNG（每棟不同）
+    const model = new THREE.Group();
+    model.add(inner);
     model.rotation.y = facing === 1 ? Math.PI / 2 : -Math.PI / 2; // +Z 正面轉向馬路
-    model.position.set(0, 0, 0);
     const full = new THREE.Box3().setFromObject(model);
     // 對齊用的輪廓只看「低處」：招牌、雨遮、陽台會凸出牆面，用整體包圍框會把房子往後推
     const foot = footprintBox(model, full.min.y + BUILDING_FOOTPRINT_HEIGHT);
@@ -480,12 +505,9 @@ export function restyleBuilding(b: BuildingParts, facing: 1 | -1): number {
     b.model = model;
     return foot.max.z - foot.min.z;
   }
-  // fallback：隨機面寬/樓層/深度的色塊
+  // 模型還沒載好：隨機面寬/樓層的色塊撐著
   const c = TUNING.buildings;
-  const wide = Math.random() < c.wideChance;
-  const len = wide
-    ? THREE.MathUtils.lerp(c.wideFrontageMin, c.wideFrontageMax, Math.random())
-    : THREE.MathUtils.lerp(c.frontageMin, c.frontageMax, Math.random());
+  const len = THREE.MathUtils.lerp(c.frontageMin, c.frontageMax, Math.random());
   const floors = c.floorsMin + Math.floor(Math.random() * (c.floorsMax - c.floorsMin + 1));
   const h = floors * c.floorHeight;
   const depth = THREE.MathUtils.lerp(c.depthMin, c.depthMax, Math.random());
