@@ -15,6 +15,8 @@
 //   vsignLift   直立長條招牌底部離二樓地板多高（招牌本身高 3.6，見 KIT.vsign.height）
 //   vsign2Lift  第二片直立招牌的底部離二樓地板多高；它會貼在第一片旁邊往內一點（空隙 KIT.vsignGap）。
 //               省略這欄就只有一片。高的樓放兩片比較像
+//   vsignOut    直立招牌用細支柱從牆面撐出去多遠（招牌內側面離牆的距離，0.2～1.0 順眼）；省略 = 0.1 幾乎貼牆
+//   （二樓鐵窗會自動避開橫幅板：bannerLift + bannerH 超過 1.4 的話鐵窗就快沒地方放了）
 //   cageJitter  鐵窗方塊位置的隨機偏移上限（0 = 每層整齊排好，0.25 = 各自歪一點）
 //   seed        鐵窗偏移的亂數種子：同一個 seed 永遠出同樣的偏移；想換一組排法就換數字
 //   store       店家：用 public/assets/decals/stores/<store>/ 裡的 storefront / banner / cube / vsign .png
@@ -25,14 +27,14 @@
 import type { ShophouseSpec } from "./kit";
 
 export const SPECS: ShophouseSpec[] = [
-  { name: "shophouse-01", floors: 4, width: 5.0, wallColor: 0xd9cdb4, signCorner: "right", bannerH: 1.0, bannerLift: 0.2, plateLift: 0, vsignLift: 1.2, cageJitter: 0.2, seed: 101, store: "711", windows: "iron_gray", wall: "tile_long" },
-  { name: "shophouse-02", floors: 3, width: 4.5, wallColor: 0xc4b295, signCorner: "left", bannerH: 0.9, bannerLift: 0.4, plateLift: 0, vsignLift: 0.6, cageJitter: 0.25, seed: 102, store: "familymart", windows: "iron_curtain", wall: "tile_square" },
-  { name: "shophouse-03", floors: 5, width: 5.9, wallColor: 0xa9b3a2, signCorner: "right", bannerH: 1.2, bannerLift: 0.1, plateLift: 0, vsignLift: 2.0, vsign2Lift: 4.6, cageJitter: 0.15, seed: 103, store: "sym", windows: "iron_ac", wall: "pebble" },
-  { name: "shophouse-04", floors: 4, width: 5.4, wallColor: 0xb8624e, signCorner: "left", bannerH: 0.8, bannerLift: 0.5, plateLift: 0, vsignLift: 1.6, cageJitter: 0.25, seed: 104, store: "meiermei", windows: "iron_blue", wall: "brick" },
-  { name: "shophouse-05", floors: 3, width: 6.0, wallColor: 0xb5b5b5, signCorner: "right", bannerH: 1.1, bannerLift: 0.3, plateLift: 0, vsignLift: 0.9, cageJitter: 0.2, seed: 105, store: "50feng", windows: "iron_plant", wall: "tile_long" },
-  { name: "shophouse-06", floors: 5, width: 5.8, wallColor: 0xe2dbcd, signCorner: "left", bannerH: 1.0, bannerLift: 0.6, plateLift: 0, vsignLift: 1.0, vsign2Lift: 5.2, cageJitter: 0.1, seed: 106, store: "lianan_tcm", windows: "iron_curtain", wall: "tile_square" },
-  { name: "shophouse-07", floors: 4, width: 4.8, wallColor: 0xa85a48, signCorner: "right", bannerH: 1.0, bannerLift: 0.3, plateLift: 0, vsignLift: 1.4, cageJitter: 0.2, seed: 107, store: "garage_tutor", windows: "iron_plant", wall: "brick" },
-  { name: "shophouse-08", floors: 4, width: 5.6, wallColor: 0xd9cdb4, signCorner: "left", bannerH: 0.9, bannerLift: 0.2, plateLift: 0, vsignLift: 1.8, cageJitter: 0.15, seed: 108, store: "shutter", windows: "iron_gray", wall: "pebble" },
-  { name: "shophouse-09", floors: 3, width: 5.2, wallColor: 0xa9b3a2, signCorner: "right", bannerH: 1.1, bannerLift: 0.4, plateLift: 0, vsignLift: 0.8, cageJitter: 0.25, seed: 109, store: "acai", windows: "iron_ac", wall: "tile_long" },
-  { name: "shophouse-10", floors: 5, width: 5.5, wallColor: 0xc4b295, signCorner: "left", bannerH: 1.2, bannerLift: 0.1, plateLift: 0, vsignLift: 2.4, vsign2Lift: 0.6, cageJitter: 0.2, seed: 110, store: "50lan", windows: "iron_blue", wall: "tile_square" },
+  { name: "shophouse-01", floors: 4, width: 5.0, wallColor: 0xd9cdb4, signCorner: "right", bannerH: 1.0, bannerLift: 0.2, plateLift: 0, vsignLift: 1.2, vsignOut: 0.45, cageJitter: 0.2, seed: 101, store: "711", windows: "iron_gray", wall: "tile_long" },
+  { name: "shophouse-02", floors: 3, width: 4.5, wallColor: 0xc4b295, signCorner: "left", bannerH: 0.9, bannerLift: 0.4, plateLift: 0, vsignLift: 0.6, vsignOut: 0.25, cageJitter: 0.25, seed: 102, store: "familymart", windows: "iron_ac", wall: "tile_square" },
+  { name: "shophouse-03", floors: 5, width: 5.9, wallColor: 0xa9b3a2, signCorner: "right", bannerH: 1.2, bannerLift: 0.1, plateLift: 0, vsignLift: 2.0, vsign2Lift: 4.6, vsignOut: 0.8, cageJitter: 0.15, seed: 103, store: "sym", windows: "iron_plant", wall: "pebble" },
+  { name: "shophouse-04", floors: 4, width: 5.4, wallColor: 0xb8624e, signCorner: "left", bannerH: 0.8, bannerLift: 0.5, plateLift: 0, vsignLift: 1.6, vsignOut: 0.35, cageJitter: 0.25, seed: 104, store: "meiermei", windows: "iron_gray", wall: "brick" },
+  { name: "shophouse-05", floors: 3, width: 6.0, wallColor: 0xb5b5b5, signCorner: "right", bannerH: 1.1, bannerLift: 0.3, plateLift: 0, vsignLift: 0.9, vsignOut: 0.6, cageJitter: 0.2, seed: 105, store: "50feng", windows: "iron_plant", wall: "tile_long" },
+  { name: "shophouse-06", floors: 5, width: 5.8, wallColor: 0xe2dbcd, signCorner: "left", bannerH: 1.0, bannerLift: 0.3, plateLift: 0, vsignLift: 1.0, vsign2Lift: 5.2, vsignOut: 0.95, cageJitter: 0.1, seed: 106, store: "lianan_tcm", windows: "iron_ac", wall: "tile_square" },
+  { name: "shophouse-07", floors: 4, width: 4.8, wallColor: 0xa85a48, signCorner: "right", bannerH: 1.0, bannerLift: 0.3, plateLift: 0, vsignLift: 1.4, vsignOut: 0.3, cageJitter: 0.2, seed: 107, store: "garage_tutor", windows: "iron_plant", wall: "brick" },
+  { name: "shophouse-08", floors: 4, width: 5.6, wallColor: 0xd9cdb4, signCorner: "left", bannerH: 0.9, bannerLift: 0.2, plateLift: 0, vsignLift: 1.8, vsignOut: 0.5, cageJitter: 0.15, seed: 108, store: "shutter", windows: "iron_gray", wall: "pebble" },
+  { name: "shophouse-09", floors: 3, width: 5.2, wallColor: 0xa9b3a2, signCorner: "right", bannerH: 1.1, bannerLift: 0.25, plateLift: 0, vsignLift: 0.8, vsignOut: 0.7, cageJitter: 0.25, seed: 109, store: "acai", windows: "iron_ac", wall: "tile_long" },
+  { name: "shophouse-10", floors: 5, width: 5.5, wallColor: 0xc4b295, signCorner: "left", bannerH: 1.2, bannerLift: 0.1, plateLift: 0, vsignLift: 2.4, vsign2Lift: 0.6, vsignOut: 0.85, cageJitter: 0.2, seed: 110, store: "50lan", windows: "iron_gray", wall: "tile_square" },
 ];

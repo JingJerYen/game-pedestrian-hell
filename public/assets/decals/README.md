@@ -48,4 +48,4 @@ decals/
 
 牆面（`walls/<名>.png`，由 `python3 scripts/shophouse/walltex.py` 程式畫的，要改樣式改那支）：`tile_long`（二丁掛）、`tile_square`（小口方磚）、`pebble`（洗石子）、`brick`（紅磚，配磚紅 wallColor）。
 
-鐵窗（`windows/<名>.png`）：`iron_gray`、`iron_curtain`、`iron_ac`、`iron_blue`、`iron_plant`（`a` 是早期測試圖）。
+鐵窗（`windows/<名>.png`）：`iron_gray`（素色）、`iron_ac`（冷氣）、`iron_plant`（盆栽）。

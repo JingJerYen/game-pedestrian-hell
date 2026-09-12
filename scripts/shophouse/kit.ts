@@ -6,8 +6,9 @@
 // 每棟的構造（正面朝 +Z、地面 y=0、面寬置中、往 -Z 延伸）：
 //   一樓 店面：內縮成騎樓，兩根柱子，內牆貼「storefront」；騎樓上緣一片微凸的橫幅板貼「banner」；
 //         正面一角一片垂直牆面凸出的方形薄片招牌，兩面貼「cube」。
-//   二樓以上 民宅：每層正面兩個凸出的鐵窗方塊貼「window」；一片直立長條招牌凸出牆面，
-//         兩側面貼「vsign」。左右側牆也有鐵窗方塊（路口轉角看得到）。
+//   二樓以上 民宅：每層正面兩個凸出的鐵窗方塊貼「window」（二樓的會避開橫幅板：底部一定在板子上緣以上）；
+//         一片直立長條招牌用幾根細支柱從牆面撐出去（spec.vsignOut 決定撐多遠），兩側面貼「vsign」。
+//         左右側牆也有鐵窗方塊（路口轉角看得到）。
 //   屋頂：女兒牆＋圓柱不鏽鋼水塔立在小方柱上。
 //   牆體（樓上牆面、一樓柱子、女兒牆）另成一個「wall」網格：UV 直接用公尺（x/z 對 u、y 對 v），
 //   匯出時掛一張 1 m × 1 m 的無縫灰階紋理重複貼、頂點色（wallColor）染色；沒指定紋理就維持純色。
@@ -26,6 +27,7 @@ export const KIT = {
   plate: { size: 1.0, thick: 0.1, out: 1.0 }, // 方形薄片招牌：邊長、厚度、凸出牆面多少
   vsign: { thick: 0.25, height: 3.6, depth: 0.9 }, // 直立長條招牌：厚度、高度、凸出牆面多少
   vsignGap: 0.35, // 兩片直立招牌之間的空隙
+  vsignStrut: 0.06, // 撐直立招牌的支柱粗細
   cage: { w: 1.3, h: 1.5, out: 0.4 }, // 鐵窗方塊：寬、高、凸出多少
   tank: { r: 0.6, h: 1.2, base: 0.7, baseH: 0.8 }, // 水塔：半徑、高、方柱邊長、方柱高
   trimColor: 0x6b6560, // 樓板線／水塔座
@@ -123,6 +125,7 @@ export interface ShophouseSpec {
   plateLift: number; // 薄片招牌底離橫幅板頂多高
   vsignLift: number; // 直立招牌底離二樓地板多高
   vsign2Lift?: number; // 第二片直立招牌（貼著第一片旁邊、往內一點）底離二樓地板多高；省略 = 只有一片
+  vsignOut?: number; // 直立招牌的內側面離牆多遠（公尺），用細支柱撐出去；省略 = 0.1（幾乎貼牆）
   cageJitter: number; // 鐵窗位置的隨機偏移上限（0 = 整齊排好）
   seed: number; // 鐵窗偏移的亂數種子
   store?: string; // 店家資料夾名（public/assets/decals/stores/<store>/），四個店家槽貼它的圖
@@ -194,11 +197,18 @@ export function makeShophouse(spec: ShophouseSpec): Shophouse {
   // 直立長條招牌：另一角，凸出牆面；兩側面貼圖（沿街看得到）；掛的高度每款不同。
   // 有 vsign2Lift 就在旁邊（往內 vsignGap）再掛一片，高的樓常見兩三片擠在一起
   const v = s.vsign;
+  const out = spec.vsignOut ?? 0.1; // 招牌內側面離牆多遠
   const addVsign = (x: number, lift: number) => {
     const y = fh + lift + v.height / 2;
-    addBlock(parts, UNIT_BOX, signBody, [v.thick, v.height, v.depth], [x, y, v.depth / 2 + 0.1]);
-    addDecal(decals, "vsign", "x", [x + v.thick / 2 + EPS, y, v.depth / 2 + 0.1], v.depth - 0.06, v.height - 0.08);
-    addDecal(decals, "vsign", "-x", [x - v.thick / 2 - EPS, y, v.depth / 2 + 0.1], v.depth - 0.06, v.height - 0.08);
+    const zc = out + v.depth / 2;
+    addBlock(parts, UNIT_BOX, signBody, [v.thick, v.height, v.depth], [x, y, zc]);
+    addDecal(decals, "vsign", "x", [x + v.thick / 2 + EPS, y, zc], v.depth - 0.06, v.height - 0.08);
+    addDecal(decals, "vsign", "-x", [x - v.thick / 2 - EPS, y, zc], v.depth - 0.06, v.height - 0.08);
+    // 支柱：從牆面（z=0）伸到招牌後面，上下各一根，招牌高就中間再加一根
+    const st = s.vsignStrut;
+    const ys = [y - v.height / 2 + st * 2, y + v.height / 2 - st * 2];
+    if (v.height > 3) ys.push(y);
+    for (const sy of ys) addBlock(parts, UNIT_BOX, dark, [st, st, out + 0.05], [x, sy, (out + 0.05) / 2]);
   };
   const vX = -cubeSide * (w / 2 - v.thick / 2 - 0.15);
   addVsign(vX, spec.vsignLift);
@@ -207,11 +217,15 @@ export function makeShophouse(spec: ShophouseSpec): Shophouse {
   // 鐵窗方塊：二樓以上每層正面兩個、左右側面各兩個；每個位置都帶一點隨機偏移
   const g = s.cage;
   const jit = () => rnd(-spec.cageJitter, spec.cageJitter);
+  const bannerTop = bannerY + bannerH / 2;
   for (let f = 1; f < floors; f++) {
     const yBase = f * fh + fh * 0.5;
+    // 正面鐵窗可放的高度範圍：底部不壓到橫幅板（只有二樓會碰到），頂部不壓到上一層的樓板線
+    const yMin = Math.max(yBase - 0.6, bannerTop + 0.12 + g.h / 2);
+    const yMax = (f + 1) * fh - 0.15 - g.h / 2;
     for (const sx of [-1, 1]) {
       const x = sx * w * 0.25 + jit();
-      const y = yBase + jit() * 0.6;
+      const y = THREE.MathUtils.clamp(yBase + jit() * 0.6, yMin, yMax);
       addBlock(parts, UNIT_BOX, cage, [g.w, g.h, g.out], [x, y, g.out / 2]);
       addDecal(decals, "window", "z", [x, y, g.out + EPS], g.w - 0.08, g.h - 0.08);
     }
