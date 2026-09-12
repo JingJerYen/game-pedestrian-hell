@@ -22,7 +22,20 @@ export class Hud {
   private readonly failPrompt = el("fail-prompt");
   private readonly win = el("win");
   private readonly winPrompt = el("win-prompt");
+  private readonly camToggle = el("cam-toggle") as HTMLButtonElement;
   private promptTimer = 0; // 延遲顯示「按任意鍵」的計時器
+
+  // 鏡頭模式切換鈕：按了呼叫 onToggle；按鈕上的字由 setCameraModeLabel 更新
+  bindCameraToggle(onToggle: () => void): void {
+    this.camToggle.addEventListener("click", (e) => {
+      e.preventDefault();
+      onToggle();
+      this.camToggle.blur(); // 焦點還給遊戲，不然之後按空白鍵會再按到按鈕
+    });
+  }
+  setCameraModeLabel(text: string): void {
+    this.camToggle.textContent = text;
+  }
 
   setStatus(
     hearts: number,

@@ -3,11 +3,19 @@
 export const TUNING = {
   // ── 鏡頭（第三人稱、馬力歐賽車式低視角）──
   cameraHeight: 2.4, // 鏡頭離地高度
-  cameraDistance: 6.0, // 鏡頭在玩家後方多遠
+  cameraDistance: 6.0, // 鏡頭在玩家後方多遠（視角 2 第三人稱；視角 1 用下面 firstPerson.distance）
   cameraFov: 70, // 視野角度（越大越有速度感，也越魚眼）
   cameraLookAhead: 14, // 鏡頭看向玩家前方多遠的地面
   cameraXFollow: 1.0, // 橫移時鏡頭跟過去的比例（0=固定不動、1=完全跟隨）
   cameraXDamp: 4, // 鏡頭橫向跟隨的平滑度（越大跟越緊）
+  // 視角切換（右上角按鈕或 C 鍵，選擇記在瀏覽器）：
+  // "fixed"  = 視角 2：第三人稱——用上面的 cameraDistance / cameraHeight，永遠看馬路前方、↑ 沿馬路走
+  // "follow" = 視角 1：第一人稱——鏡頭在人物眼睛位置、跟著朝向轉、按鍵跟畫面（cameraOrbit）
+  cameraModeDefault: "fixed" as "fixed" | "follow",
+  firstPerson: {
+    distance: -0.1, // 視角 1 的 cameraDistance（略往前免得看到自己）
+    height: 1.5, // 視角 1 的 cameraHeight（眼睛高度）
+  },
   // 鏡頭跟著人物的朝向繞到他背後（第三人稱跟隨）：人物面向哪裡，鏡頭就在他後面看那裡。
   // 放開按鍵人物維持朝向，鏡頭也維持，不會滑回正前方
   cameraOrbit: {

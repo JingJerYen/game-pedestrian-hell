@@ -178,11 +178,44 @@ if ("ontouchstart" in window) {
 // 直式畫面（手機豎拿）自動改用 cameraPortrait 那組參數。
 let cameraX = 0;
 let cameraYaw = 0; // 目前鏡頭繞到人物哪個方向（弧度，0 = 正後方），朝目標平滑收斂
+
+// 鏡頭模式（fixed / follow）：玩家可切換，選擇記在瀏覽器
+type CameraMode = "fixed" | "follow";
+let cameraMode: CameraMode = TUNING.cameraModeDefault;
+try {
+  const saved = localStorage.getItem("cameraMode");
+  if (saved === "fixed" || saved === "follow") cameraMode = saved;
+} catch {
+  /* 無痕模式等情況讀不到就用預設 */
+}
+function applyCameraMode(mode: CameraMode): void {
+  cameraMode = mode;
+  hud.setCameraModeLabel(mode === "follow" ? "視角 1：第一人稱" : "視角 2：第三人稱");
+  try {
+    localStorage.setItem("cameraMode", mode);
+  } catch {
+    /* 存不了就算了 */
+  }
+}
+function toggleCameraMode(): void {
+  applyCameraMode(cameraMode === "follow" ? "fixed" : "follow");
+}
+hud.bindCameraToggle(toggleCameraMode);
+applyCameraMode(cameraMode);
+window.addEventListener("keydown", (e) => {
+  if (e.key === "c" || e.key === "C") toggleCameraMode();
+});
 function updateCamera(dt: number): void {
   const t = TUNING;
   const portrait = camera.aspect < 1;
-  const height = portrait ? t.cameraPortrait.height : t.cameraHeight;
-  const distance = portrait ? t.cameraPortrait.distance : t.cameraDistance;
+  const firstPerson = cameraMode === "follow";
+  const height = firstPerson
+    ? t.firstPerson.height
+    : portrait ? t.cameraPortrait.height : t.cameraHeight;
+  const distance = firstPerson
+    ? t.firstPerson.distance
+    : portrait ? t.cameraPortrait.distance : t.cameraDistance;
+  player.mesh.visible = !firstPerson; // 第一人稱：別看到自己的後腦勺
   const lookAhead = portrait ? t.cameraPortrait.lookAhead : t.cameraLookAhead;
   const fov = portrait ? t.cameraPortrait.fov : t.cameraFov;
   if (camera.fov !== fov) {
@@ -197,7 +230,7 @@ function updateCamera(dt: number): void {
   );
   // 鏡頭繞到人物背後：跟著人物「目前的朝向」（mesh.rotation.y，0 = 面向前方），
   // 走最短弧度平滑追上；放開按鍵人物不轉，鏡頭就停在那裡
-  const targetYaw = player.mesh.rotation.y * t.cameraOrbit.ratio;
+  const targetYaw = cameraMode === "follow" ? player.mesh.rotation.y * t.cameraOrbit.ratio : 0;
   const delta = Math.atan2(Math.sin(targetYaw - cameraYaw), Math.cos(targetYaw - cameraYaw));
   cameraYaw += delta * (1 - Math.exp(-t.cameraOrbit.damp * dt));
   const sin = Math.sin(cameraYaw);
@@ -228,7 +261,7 @@ renderer.setAnimationLoop(() => {
     const iz = held.has("up") ? 1 : held.has("down") ? -1 : 0;
     let mx = ix;
     let mz = -iz;
-    if (TUNING.cameraOrbit.keysFollowCamera) {
+    if (cameraMode === "follow" && TUNING.cameraOrbit.keysFollowCamera) {
       const s = Math.sin(cameraYaw);
       const c = Math.cos(cameraYaw);
       mx = -iz * s + ix * c;

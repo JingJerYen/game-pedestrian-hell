@@ -136,6 +136,22 @@
         background: rgba(255, 255, 255, 0.55);
         transform: translate(-50%, -50%);
       }
+      /* 鏡頭模式切換鈕（右上角；手機也按得到） */
+      #cam-toggle {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        padding: 8px 14px;
+        border: 2px solid rgba(255, 255, 255, 0.7);
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.35);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
       #hint {
         position: fixed;
         bottom: 16px;
@@ -173,7 +189,8 @@
     </div>
     <div id="debug"></div>
     <div id="stick-base"><div id="stick-knob"></div></div>
-    <div id="hint">↑ 前進　↓ 後退　← → 橫移</div>
+    <button id="cam-toggle" type="button">視角 2：第三人稱</button>
+    <div id="hint">↑ 前進　↓ 後退　← → 橫移　C 切換視角</div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
