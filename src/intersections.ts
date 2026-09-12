@@ -13,6 +13,8 @@ import {
   RIGHT_SIDEWALK_COL,
   WALK_MIN_X,
   WALK_MAX_X,
+  hasSidewalk,
+  buildingLineX,
   type LevelConfig,
 } from "./tuning";
 import {
@@ -87,14 +89,13 @@ export class Intersections {
       group.add(zebra);
     }
 
-    // 行人直行的斑馬線（左右人行道的延伸段，右轉車就是掃這裡）
-    for (const x of [colX(0), colX(RIGHT_SIDEWALK_COL)]) {
-      group.add(makeZebraForward(x, depth));
-    }
+    // 行人直行的斑馬線（左右人行道的延伸段，右轉車就是掃這裡）；那側沒人行道就不畫
+    if (hasSidewalk("left")) group.add(makeZebraForward(colX(0), depth));
+    if (hasSidewalk("right")) group.add(makeZebraForward(colX(RIGHT_SIDEWALK_COL), depth));
 
     // 行人紅綠燈（永遠綠燈）：立在路口「對面」兩角——過馬路時正對著你，
-    // 跟現實一樣（行人燈在你要走去的那一頭）
-    for (const x of [WALK_MIN_X - 0.6, WALK_MAX_X + 0.6]) {
+    // 跟現實一樣（行人燈在你要走去的那一頭）。貼著建築前緣那條線
+    for (const x of [buildingLineX("left") - 0.4, buildingLineX("right") + 0.4]) {
       const light = makeTrafficLight();
       light.position.set(x, 0, -(depth / 2 + 0.6));
       group.add(light);

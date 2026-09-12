@@ -130,6 +130,7 @@ export const TUNING = {
     mergeLook: 8, // 人行道前方這麼近有路障就切到路邊車道
     returnLook: 12, // 在車道上時，人行道前方這麼遠都乾淨才切回去（要比 mergeLook 大，才不會來回抖）
     stopGap: 2.5, // 切不出去（車道有車或違停）時，離路障這麼近就煞停等
+    cornerGap: 0.6, // 換道途中：車頭前方這麼近有路障就先別往前（斜切才不會擦到路障的角）
     sideMargin: 0.2, // 判斷路障擋不擋時，腳踏車兩側多留的餘裕
     laneChangeDamp: 3, // 切換車道的平滑度（越大切越快）
     // 切進車道前的空檔判斷：後方這段距離內有「比我快、正在接近」的車就先等它過。
@@ -142,6 +143,7 @@ export const TUNING = {
     // 範圍內有腳踏車 → 右轉車在路口停著等它過；範圍前 yieldDist 公尺內的腳踏車
     // 看到 turnerRange 內有右轉車接近 → 停下讓車。兩邊互相等，誰都不會輾過誰。
     sweepLen: 13,
+    sweepBack: 2.5, // 掃過範圍從路口中心往「後」也算這麼多（右轉車車尾會往外甩）
     yieldDist: 6,
     turnerRange: 11,
   },
@@ -199,8 +201,9 @@ export const TUNING = {
   // ── 靜止路障（擋路不致死；「多密、多常違停」由下面的關卡表決定）──
   sidewalkObstacleSize: { x: 2.2, y: 1.3, z: 2.8 }, // 人行道路障（機車堆、攤販…）
   obstacleSpawnZ: 96, // 路障生成在前方多遠（比車生成點再遠一點，避免疊到車）
-  // 生成點附近有車（同向車、腳踏車）就先不生：橫向/縱向各多看這麼多餘裕
-  obstacleSpawnMargin: { x: 0.6, z: 3 },
+  // 生成點附近有車（同向車、腳踏車）就先不生：縱向多看這麼多餘裕
+  // （橫向不加餘裕：加了會伸進隔壁車道，路過的車會一直擋住人行道路障生成）
+  obstacleSpawnMargin: { x: 0, z: 3 },
 
   // ── 停車格路段（人行道「靠馬路那半邊」直接換成停車格鋪面接手，
   //    靠建築那半邊仍是綠色走道；格子裡可能停著車）──
@@ -267,6 +270,7 @@ export const TUNING = {
     bikeIntervalStart: 6, // 人行道腳踏車生成間隔（秒）
     bikeIntervalEnd: 2.5,
     formWeights: { walker: 0.5, stroller: 0.3, wheelchair: 0.2 }, // 行人型態抽選權重
+    sidewalkWeights: { normal: 0.6, asphalt: 0.25, none: 0.15 }, // 人行道樣式抽選權重（左右各抽一次）
     sideHintUntil: 4, // 無限模式第幾關之後，不再提示終點在哪側（自己找目的地大樓）
     entryFlavor: "你以為到了？台灣的路是走不完的", // 進入無限模式第一關的橫幅小語
     destinations: [
@@ -285,11 +289,16 @@ export const TUNING = {
   },
 
   // ── 碰撞 ──
-  hitboxShrink: 0.75, // 致死碰撞箱是視覺大小的幾成（從寬判定：差點撞到 > 冤枉死）
+  hitboxShrink: 1.0, // 致死碰撞箱是視覺大小的幾成（從寬判定：差點撞到 > 冤枉死）
   obstacleBlockShrink: 0.98, // 路障「擋住」判定的縮比：幾乎貼齊視覺，行人才不會穿模
 } as const;
 
 export type PlayerForm = keyof typeof TUNING.playerForms;
+// 人行道鋪面樣式：normal = 綠鋪面＋「人行道」字；asphalt = 跟車道同色、有路緣白線、沒有字；
+// none = 那一側沒有人行道——只有車道，建築直接貼到車道邊，行人走不進去，
+// 也不會有停車格、路障、腳踏車、直向斑馬線。
+export type SidewalkStyle = "normal" | "asphalt" | "none";
+export type Side = "left" | "right";
 export type VehicleType = keyof typeof TUNING.vehicles;
 // 死法（＝deathCaptions 的鍵）："timeout" 以外的都是被車撞，由 traffic 回報兇手
 export type DeathCause = keyof typeof TUNING.deathCaptions;
@@ -328,6 +337,10 @@ export interface LevelConfig {
   flavorText?: string;
   // ↓ 可選：這關用 TUNING.backdrop.sets 的第幾張背景（0 起算）；不填就依關數輪換
   backdrop?: number;
+  // ↓ 可選：左右人行道各自的樣式（normal 綠鋪面 / asphalt 跟車道同色沒有字 / none 沒有人行道只有車道）；
+  //   不填 = normal。goalSide 指到 none 的那側時，「站上路邊車道」就算到達
+  sidewalkLeft?: SidewalkStyle;
+  sidewalkRight?: SidewalkStyle;
   // ↓ 可選：提示開關。目的地建築照樣會出現，只是不告訴玩家在哪/多遠——讓他自己找
   hideSideHint?: boolean; // true = 不提示終點在左/右側（橫幅、HUD、「到了！」提示都不出現）
   hideDistanceHint?: boolean; // true = 不顯示目標距離（HUD 只顯示已走公尺數）
@@ -362,6 +375,8 @@ export const LEVELS: LevelConfig[] = [
     goalSide: "left",
     destinationLabel: "托嬰中心",
     flavorText: "寶寶快遲到了",
+    sidewalkLeft: "asphalt", // 左側人行道跟車道同色、沒有字
+    sidewalkRight: "asphalt",
   },
   {
     goalDistance: 35,
@@ -376,6 +391,8 @@ export const LEVELS: LevelConfig[] = [
     goalSide: "right",
     destinationLabel: "醫院",
     flavorText: "回診快來不及了",
+    sidewalkLeft: "none", // 左側沒有人行道，只有車道
+    sidewalkRight: "normal",
   },
 ];
 
@@ -419,6 +436,27 @@ export const SIDEWALK_WIDTH = TUNING.laneWidth + 0.8;
 // 迎面車道左緣（左人行道右緣）
 export const ROAD_LEFT = -TUNING.laneWidth / 2;
 
-// 玩家橫移範圍：整條人行道（含貼建築的邊緣）都能走
+// 玩家橫移範圍的最大值：整條人行道（含貼建築的邊緣）都能走
+// （那一側沒有人行道時實際範圍會縮到車道邊，見下面 walkMinX / walkMaxX）
 export const WALK_MIN_X = ROAD_LEFT - SIDEWALK_WIDTH;
 export const WALK_MAX_X = BG_RIGHT + SIDEWALK_WIDTH;
+
+// ── 目前這關的人行道配置（main.ts 每關開始時設定；各模組讀這裡，不要自己記）──
+export const LAYOUT: { left: SidewalkStyle; right: SidewalkStyle } = {
+  left: "normal",
+  right: "normal",
+};
+export function hasSidewalk(side: Side): boolean {
+  return LAYOUT[side] !== "none";
+}
+// 目前可走的橫向範圍：有人行道到人行道外緣，沒有就到車道邊
+export function walkMinX(): number {
+  return hasSidewalk("left") ? WALK_MIN_X : ROAD_LEFT;
+}
+export function walkMaxX(): number {
+  return hasSidewalk("right") ? WALK_MAX_X : BG_RIGHT;
+}
+// 建築前緣所在的線（人行道外緣；沒人行道就是車道邊）——建築、目的地、紅綠燈都貼這條線
+export function buildingLineX(side: Side): number {
+  return side === "left" ? walkMinX() - TUNING.buildingGap : walkMaxX() + TUNING.buildingGap;
+}

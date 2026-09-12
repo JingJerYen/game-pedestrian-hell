@@ -7,8 +7,10 @@ import * as THREE from "three";
 import {
   TUNING,
   colX,
-  WALK_MIN_X,
-  WALK_MAX_X,
+  walkMinX,
+  walkMaxX,
+  hasSidewalk,
+  RIGHT_SIDEWALK_COL,
   type PlayerForm,
   type DeathCause,
 } from "./tuning";
@@ -114,8 +116,8 @@ export class Player {
       const oldX = this.mesh.position.x;
       this.mesh.position.x = THREE.MathUtils.clamp(
         oldX + dirX * strafeSpeed * dt,
-        WALK_MIN_X + this.size.x / 2,
-        WALK_MAX_X - this.size.x / 2,
+        walkMinX() + this.size.x / 2,
+        walkMaxX() - this.size.x / 2,
       );
       // 橫移會撞進路障就退回原位（貼著路障停下）
       if (obstacles.blocksAt(this.mesh.position, this.size)) {
@@ -162,7 +164,9 @@ export class Player {
   }
 
   reset(): void {
-    this.mesh.position.set(colX(0), this.size.y / 2, 0); // 從人行道出發
+    // 從人行道出發：左側有就左側，沒有就右側；兩側都沒有就站在左邊的路邊車道
+    const startCol = hasSidewalk("left") ? 0 : hasSidewalk("right") ? RIGHT_SIDEWALK_COL : 1;
+    this.mesh.position.set(colX(startCol), this.size.y / 2, 0);
     this.mesh.rotation.y = 0; // 面向前方
     this.buildRig(); // 每關換一位路人
   }

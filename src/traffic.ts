@@ -18,6 +18,7 @@ import {
   WALK_MIN_X,
   WALK_MAX_X,
   randomVehicleType,
+  hasSidewalk,
   type LevelConfig,
   type DeathCause,
 } from "./tuning";
@@ -124,8 +125,8 @@ export class Traffic {
       if (car.mode === "straight") {
         if (car.bike) {
           this.steerBike(car, dt, obstacles, centers);
-        } else if (car.dir === -1) {
-          // 同向車追上違停就往內側（-X）繞
+        } else if (car.dir === -1 && t.bgLanes >= 2) {
+          // 同向車追上違停就往內側（-X）繞（同側只有一線時沒有內側可繞——那側也不會放違停）
           const want = obstacles.hasObstacleAhead(
             car.baseX,
             car.size.x / 2,
@@ -222,6 +223,12 @@ export class Traffic {
       b.laneChangeDamp,
       dt,
     );
+    // 換道途中：身體「目前」所在的線上前方緊貼著路障就先別往前，等橫向切乾淨再走
+    // （不然從路障邊緣起步斜切會擦到路障的角）
+    if (obstacles.hasObstacleAhead(p.x, halfW, p.z, car.size.z / 2 + b.cornerGap, car.dir)) {
+      car.effSpeed = 0;
+      if (!car.stall) car.stall = car.inLane ? "merge" : "return";
+    }
 
     // 路口讓車：還沒進右轉掃過範圍、又有右轉車接近 → 停下來讓它先轉
     if (this.turnDanger(p.z, car.size.z / 2, car.dir, this.onRoad(car), centers)) {
@@ -276,11 +283,12 @@ export class Traffic {
     });
   }
 
-  // 腳踏車相對路口「右轉掃過範圍」的位置（範圍 = 中心前 2 公尺 ～ 中心後 sweepLen）
+  // 腳踏車相對路口「右轉掃過範圍」的位置（範圍 = 中心前 sweepBack ～ 中心後 sweepLen）
   private sweepPos(z: number, halfLen: number, dir: 1 | -1, center: number): SweepPos {
     const b = TUNING.bike;
     const s = (z - center) * dir; // 過了中心多遠（負＝還沒到）
-    if (s < -2 - halfLen) return s > -2 - halfLen - b.yieldDist ? "before" : "far";
+    const start = -b.sweepBack - halfLen;
+    if (s < start) return s > start - b.yieldDist ? "before" : "far";
     if (s < b.sweepLen + halfLen) return "in";
     return "past";
   }
@@ -399,7 +407,11 @@ export class Traffic {
   // 人行道腳踏車：慢、撞到照樣死。左右人行道隨機，方向跟該側車流同向
   private spawnBike(obstacles: Obstacles, centers: number[]): void {
     const b = TUNING.bike;
-    const left = Math.random() < 0.5;
+    // 只在有人行道的那側生；兩側都沒有就沒有腳踏車
+    const canLeft = hasSidewalk("left");
+    const canRight = hasSidewalk("right");
+    if (!canLeft && !canRight) return;
+    const left = canLeft && (!canRight || Math.random() < 0.5);
     const col = left ? 0 : RIGHT_SIDEWALK_COL;
     const dir: 1 | -1 = left ? 1 : -1; // 左側迎面騎來、右側從你背後來
     const laneX = colX(left ? 1 : LAST_ROAD_COL); // 遇路障要切過去的路邊車道

@@ -11,7 +11,9 @@ import {
   BG_LEFT,
   BG_RIGHT,
   RIGHT_SIDEWALK_COL,
-  SIDEWALK_WIDTH,
+  LAYOUT,
+  buildingLineX,
+  type Side,
 } from "./tuning";
 import {
   makeBuilding,
@@ -49,6 +51,9 @@ export class World {
   private backdropIndex = 0; // 目前用的是 sets 的第幾張
   private readonly markGroups: THREE.Group[] = []; // 路面標記（慢/50）：一組=一側車道各一字
   private readonly sidewalkMarks: THREE.Mesh[] = []; // 人行道上的「人行道」字
+  private readonly sidewalks: THREE.Mesh[] = []; // 左右人行道鋪面
+  private readonly edgeLines: THREE.Mesh[] = []; // 路邊白線
+  private readonly roadMaterial: THREE.MeshLambertMaterial; // 柏油（asphalt/none 樣式的人行道也用它）
   private readonly busZones: THREE.Group[] = []; // 公車停靠區：外側車道貼路邊線的長條
 
   constructor() {
@@ -79,9 +84,10 @@ export class World {
 
 
     // 柏油路面（迎面車道＋雙黃線區＋對向車道）
+    this.roadMaterial = new THREE.MeshLambertMaterial({ color: 0x3a3a3e });
     const road = new THREE.Mesh(
       new THREE.PlaneGeometry(BG_RIGHT - roadLeft, ROAD_LENGTH),
-      new THREE.MeshLambertMaterial({ color: 0x3a3a3e }),
+      this.roadMaterial,
     );
     road.rotation.x = -Math.PI / 2;
     road.position.set((roadLeft + BG_RIGHT) / 2, 0, roadZ);
@@ -96,6 +102,7 @@ export class World {
       const sidewalk = new THREE.Mesh(sidewalkGeo, sidewalkMaterial());
       sidewalk.position.set(centerX, 0.04, roadZ);
       this.scene.add(sidewalk);
+      this.sidewalks.push(sidewalk);
     }
 
     // 路邊白線：人行道與車道的交界，連續不間斷
@@ -107,6 +114,7 @@ export class World {
       line.rotation.x = -Math.PI / 2;
       line.position.set(x, 0.011, roadZ);
       this.scene.add(line);
+      this.edgeLines.push(line);
     }
 
     // 雙黃線（取代分隔島；行人可以直接跨越）
@@ -190,6 +198,29 @@ export class World {
     zone.rotation.y = left ? Math.PI : 0;
   }
 
+  // 套用 LAYOUT 的人行道配置（每關開始時呼叫）。左右各自：
+  // normal = 綠鋪面墊高＋「人行道」字；asphalt = 同樣墊高但柏油色、沒有字；
+  // none = 那側整條人行道消失，建築挪到車道邊（路邊白線留著，是車道的邊線）
+  applySidewalks(): void {
+    (["left", "right"] as const).forEach((side, i) => {
+      const style = LAYOUT[side];
+      const sw = this.sidewalks[i];
+      sw.visible = style !== "none";
+      sw.material = style === "normal" ? sidewalkMaterial() : this.roadMaterial;
+    });
+    for (const mark of this.sidewalkMarks) mark.visible = false; // update() 會依側別再打開
+    // 建築前緣貼到新的線上
+    for (const { side, list } of this.rows) {
+      const x = buildingLineX(side === -1 ? "left" : "right");
+      for (const b of list) b.parts.root.position.x = x;
+    }
+  }
+
+  // 這一側的「人行道」字要不要顯示（只有綠鋪面樣式才有字）
+  private marksOn(side: Side): boolean {
+    return LAYOUT[side] === "normal";
+  }
+
   // 每關開場把「人行道」字擺回玩家眼前（左側緊鄰出生點、右側稍遠），
   // 讓玩家從第一眼就認得綠鋪面是人行道；其餘的隨機散佈
   resetSidewalkMarks(): void {
@@ -240,10 +271,7 @@ export class World {
   private restyleRowBuilding(b: RowBuilding, side: -1 | 1): void {
     // 左側建築正面朝 +X（馬路在右邊）、右側朝 -X；root 原點放在人行道外緣那條線上
     b.len = restyleBuilding(b.parts, side === -1 ? 1 : -1);
-    b.parts.root.position.x =
-      side === -1
-        ? ROAD_LEFT - SIDEWALK_WIDTH - TUNING.buildingGap
-        : BG_RIGHT + SIDEWALK_WIDTH + TUNING.buildingGap;
+    b.parts.root.position.x = buildingLineX(side === -1 ? "left" : "right");
     b.parts.root.position.y = 0;
   }
 
@@ -258,8 +286,13 @@ export class World {
     }
   }
 
+  // 「人行道」字要放哪一側：只挑綠鋪面的那側（兩側都不是就隨便放，反正會被隱藏）
   private randomSidewalkX(): number {
-    return colX(Math.random() < 0.5 ? 0 : RIGHT_SIDEWALK_COL);
+    const cols: number[] = [];
+    if (this.marksOn("left")) cols.push(0);
+    if (this.marksOn("right")) cols.push(RIGHT_SIDEWALK_COL);
+    if (cols.length === 0) cols.push(0, RIGHT_SIDEWALK_COL);
+    return colX(cols[Math.floor(Math.random() * cols.length)]);
   }
 
   // 重抽一組路面標記：隨機側別（左=迎面/右=同向）、隨機字（慢/50）
@@ -384,7 +417,7 @@ export class World {
           zone.side === side &&
           Math.abs(mark.position.z - zone.z) < zone.halfLen + halfMark,
       );
-      mark.visible = !nearZone(mark.position.z, halfMark) && !onParking;
+      mark.visible = this.marksOn(side) && !nearZone(mark.position.z, halfMark) && !onParking;
     }
   }
 }

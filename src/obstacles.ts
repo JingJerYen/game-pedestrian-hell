@@ -14,7 +14,7 @@ import { aabbHit, type Size3 } from "./collision";
 import type { Intersections } from "./intersections";
 import { makeParkingPavement } from "./skins";
 import { makeVehicleMesh } from "./vehicleskins";
-import { ROAD_LEFT, BG_RIGHT, WALK_MIN_X, WALK_MAX_X } from "./tuning";
+import { ROAD_LEFT, BG_RIGHT, WALK_MIN_X, WALK_MAX_X, hasSidewalk } from "./tuning";
 
 interface Obstacle {
   mesh: THREE.Object3D; // 外觀（3D 模型或方塊）；原點＝碰撞箱中心
@@ -91,17 +91,26 @@ export class Obstacles {
   ): { ok: true; extraGap: number } | { ok: false; retryAfter: number } {
     const t = TUNING;
     const z = -t.obstacleSpawnZ;
-    if (Math.random() < level.obstacleRoadChance) {
-      // 違停車：左右兩側靠人行道的路邊車道，車頭順著該側車流方向
-      const col = Math.random() < 0.5 ? 1 : LAST_ROAD_COL;
+    // 違停車：左右兩側靠人行道的路邊車道，車頭順著該側車流方向。
+    // 只放在「該側至少兩線」的路邊車道——只有一線的話違停會把整條路堵死
+    const roadCols: number[] = [];
+    if (t.roadLanes >= 2) roadCols.push(1);
+    if (t.bgLanes >= 2) roadCols.push(LAST_ROAD_COL);
+    if (roadCols.length > 0 && Math.random() < level.obstacleRoadChance) {
+      const col = roadCols[Math.floor(Math.random() * roadCols.length)];
       const halfLen = t.vehicles.car.size.z / 2;
       const blocked = this.canPlace(col, halfLen, occupied);
       if (blocked) return blocked;
       this.addParkedCar(col, colX(col), z, t.vehicles.car.size, col === 1 ? 0 : Math.PI);
       return { ok: true, extraGap: 0 };
     }
-    // 人行道：單顆路障，或整段停車格路段（半邊換成停車格鋪面）
-    const col = Math.random() < 0.5 ? 0 : RIGHT_SIDEWALK_COL;
+    // 人行道：單顆路障，或整段停車格路段（半邊換成停車格鋪面）。
+    // 只挑有人行道的那側；兩側都沒有就這輪不生
+    const sides: number[] = [];
+    if (hasSidewalk("left")) sides.push(0);
+    if (hasSidewalk("right")) sides.push(RIGHT_SIDEWALK_COL);
+    if (sides.length === 0) return { ok: false, retryAfter: 4 };
+    const col = sides[Math.floor(Math.random() * sides.length)];
     if (Math.random() < t.parking.chance) return this.spawnParking(col, occupied);
     const halfLen = t.sidewalkObstacleSize.z / 2;
     const blocked = this.canPlace(col, halfLen, occupied);

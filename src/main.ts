@@ -4,7 +4,7 @@
 //   失敗（被撞/超時）→ fail（扣一❤）→ 按鍵重來本關；❤用完 → 按鍵回第一關
 
 import * as THREE from "three";
-import { TUNING, LEVELS, type PlayerForm } from "./tuning";
+import { TUNING, LEVELS, LAYOUT, hasSidewalk, type PlayerForm } from "./tuning";
 import { getLevel } from "./levelgen";
 import { World } from "./world";
 import { Player } from "./player";
@@ -98,14 +98,17 @@ function startLevel(index: number): void {
   position = 0;
   maxDistance = 0;
   timeLeft = lv.timeLimit;
+  LAYOUT.left = lv.sidewalkLeft ?? "normal";
+  LAYOUT.right = lv.sidewalkRight ?? "normal";
   player.setForm(lv.playerForm);
-  player.reset();
+  player.reset(); // 出發點依 LAYOUT（有人行道從人行道出發）
   traffic.reset();
   obstacles.reset();
   intersections.reset();
   destination.reset();
   world.resetSidewalkMarks();
   world.setBackdrop(lv.backdrop ?? index); // 背景每關輪換（關卡表可指定）
+  world.applySidewalks(); // 依 LAYOUT 換鋪面、挪建築
   hud.hideOverlays();
   // 目標提示依關卡設定組合：側別/距離都可以個別關掉（讓玩家自己找目的地）
   const showSide = !!lv.goalSide && !lv.hideSideHint;
@@ -237,9 +240,12 @@ renderer.setAnimationLoop(() => {
     const reached =
       Math.abs(position - lv.goalDistance) <= GOAL_ARRIVE_RANGE;
     const px = player.mesh.position.x;
+    // 該側沒有人行道的話，站上該側的路邊車道就算到達
     const sideOk =
       !lv.goalSide ||
-      (lv.goalSide === "left" ? px < ROAD_LEFT : px > BG_RIGHT);
+      (lv.goalSide === "left"
+        ? px < (hasSidewalk("left") ? ROAD_LEFT : ROAD_LEFT + TUNING.laneWidth)
+        : px > (hasSidewalk("right") ? BG_RIGHT : BG_RIGHT - TUNING.laneWidth));
     const hitBy = traffic.hitsPlayer(player);
     if (reached && sideOk) {
       // 過關：永遠有下一關（表用完由 levelgen 無縫接手）

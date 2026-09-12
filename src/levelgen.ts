@@ -7,7 +7,7 @@
 // 2. 時限不隨機，由 goalDistance ÷ 行人速度 × 餘裕係數推導——餘裕永遠 > 1，
 //    所以永遠不會生出物理上走不完的關卡。
 
-import { TUNING, LEVELS, type LevelConfig, type PlayerForm } from "./tuning";
+import { TUNING, LEVELS, type LevelConfig, type PlayerForm, type SidewalkStyle } from "./tuning";
 
 // mulberry32：小而夠用的「可餵種子」隨機數產生器（Math.random 不能指定種子）。
 // 同一個種子進去，吐出來的隨機數序列永遠相同——這就是關卡可重現的原理。
@@ -58,6 +58,16 @@ function generate(index: number): LevelConfig {
     roll < w.walker ? "walker" : roll < w.walker + w.stroller ? "stroller" : "wheelchair";
 
   const dest = e.destinations[Math.floor(rng() * e.destinations.length)];
+  // 人行道樣式：左右各照權重抽一次
+  const sw = e.sidewalkWeights;
+  const pickSidewalk = (): SidewalkStyle => {
+    const roll = rng() * (sw.normal + sw.asphalt + sw.none);
+    return roll < sw.normal ? "normal" : roll < sw.normal + sw.asphalt ? "asphalt" : "none";
+  };
+  const sidewalkLeft = pickSidewalk();
+  let sidewalkRight = pickSidewalk();
+  // 保險：至少留一側有人行道（兩側都沒有的話整條路只剩車道，也不會有腳踏車）
+  if (sidewalkLeft === "none" && sidewalkRight === "none") sidewalkRight = "normal";
 
   return {
     goalDistance,
@@ -77,5 +87,7 @@ function generate(index: number): LevelConfig {
     destinationLabel: dest.label,
     flavorText: depth === 1 ? e.entryFlavor : dest.flavor,
     hideSideHint: depth > e.sideHintUntil,
+    sidewalkLeft,
+    sidewalkRight,
   };
 }
