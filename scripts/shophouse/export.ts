@@ -29,8 +29,19 @@ const DECALS_REL = "../../decals"; // 從 GLB 所在資料夾到 decals 的相�
 console.warn = () => {}; // 匯出器對 Lambert 材質的提醒，略過
 
 // 這棟每個槽要貼的 PNG（相對 decals/ 的路徑）；找不到檔案回傳 null
-function decalFile(spec: ShophouseSpec, slot: DecalSlot): string | null {
-  const rel = slot === "window" ? (spec.windows ? `windows/${spec.windows}.png` : null) : spec.store ? `stores/${spec.store}/${slot}.png` : null;
+function decalFile(spec: ShophouseSpec, slot: DecalSlot | "wall"): string | null {
+  const rel =
+    slot === "wall"
+      ? spec.wall
+        ? `walls/${spec.wall}.png`
+        : null
+      : slot === "window"
+        ? spec.windows
+          ? `windows/${spec.windows}.png`
+          : null
+        : spec.store
+          ? `stores/${spec.store}/${slot}.png`
+          : null;
   if (!rel) return null;
   if (!existsSync(`${DECALS}/${rel}`)) {
     console.log(`  （缺圖）${rel} → 槽 ${slot} 留白`);
@@ -71,26 +82,34 @@ function attachDecals(json: any, spec: ShophouseSpec): void {
   json.textures ??= [];
   json.samplers ??= [];
   json.materials ??= [];
-  const samplerIdx = json.samplers.push({ magFilter: 9729, minFilter: 9987, wrapS: 33071, wrapT: 33071 }) - 1;
+  const samplerIdx = json.samplers.push({ magFilter: 9729, minFilter: 9987, wrapS: 33071, wrapT: 33071 }) - 1; // CLAMP
+  const repeatIdx = json.samplers.push({ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }) - 1; // REPEAT（牆面紋理）
   const removed = new Set<number>();
   json.nodes.forEach((node: any, nodeIdx: number) => {
-    if (typeof node.name !== "string" || !node.name.startsWith("decal_") || node.mesh === undefined) return;
-    const slot = node.name.slice("decal_".length) as DecalSlot;
+    if (typeof node.name !== "string" || node.mesh === undefined) return;
+    const isWall = node.name === "wall";
+    if (!isWall && !node.name.startsWith("decal_")) return;
+    const slot = isWall ? "wall" : (node.name.slice("decal_".length) as DecalSlot);
     const file = decalFile(spec, slot);
     if (!file) {
-      removed.add(nodeIdx);
+      if (!isWall) removed.add(nodeIdx); // 牆體沒紋理就維持純色，不移除
       return;
     }
     const uri = `${DECALS_REL}/${file}`;
     const imgIdx = json.images.push({ uri, name: uri }) - 1; // name = uri，遊戲端靠它共用同一張貼圖
-    const texIdx = json.textures.push({ source: imgIdx, sampler: samplerIdx, name: uri }) - 1;
-    const matIdx =
-      json.materials.push({
-        name: `decal_${slot}`,
-        pbrMetallicRoughness: { baseColorTexture: { index: texIdx }, metallicFactor: 0, roughnessFactor: 1 },
-        alphaMode: "MASK",
-        alphaCutoff: 0.5,
-      }) - 1;
+    const texIdx = json.textures.push({ source: imgIdx, sampler: isWall ? repeatIdx : samplerIdx, name: uri }) - 1;
+    const matIdx = isWall
+      ? json.materials.push({
+          name: "wall",
+          // 灰階紋理 × 頂點色（wallColor）：glTF 規定 COLOR_0 會乘進 baseColor
+          pbrMetallicRoughness: { baseColorTexture: { index: texIdx }, metallicFactor: 0, roughnessFactor: 1 },
+        }) - 1
+      : json.materials.push({
+          name: `decal_${slot}`,
+          pbrMetallicRoughness: { baseColorTexture: { index: texIdx }, metallicFactor: 0, roughnessFactor: 1 },
+          alphaMode: "MASK",
+          alphaCutoff: 0.5,
+        }) - 1;
     for (const prim of json.meshes[node.mesh].primitives) prim.material = matIdx;
   });
   // 從父節點與場景根移除留白的槽
@@ -105,5 +124,5 @@ for (const spec of SPECS) {
   attachDecals(json, spec);
   const file = `${OUT}/${spec.name}.glb`;
   writeFileSync(file, joinGlb(json, bin));
-  console.log(`${file}  ${spec.floors} 層  面寬 ${house.width.toFixed(2)} m  店家 ${spec.store ?? "-"}  鐵窗 ${spec.windows ?? "-"}`);
+  console.log(`${file}  ${spec.floors} 層  面寬 ${house.width.toFixed(2)} m  店家 ${spec.store ?? "-"}  鐵窗 ${spec.windows ?? "-"}  牆 ${spec.wall ?? "純色"}`);
 }

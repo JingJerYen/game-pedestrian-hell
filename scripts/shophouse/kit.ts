@@ -9,6 +9,8 @@
 //   二樓以上 民宅：每層正面兩個凸出的鐵窗方塊貼「window」；一片直立長條招牌凸出牆面，
 //         兩側面貼「vsign」。左右側牆也有鐵窗方塊（路口轉角看得到）。
 //   屋頂：女兒牆＋圓柱不鏽鋼水塔立在小方柱上。
+//   牆體（樓上牆面、一樓柱子、女兒牆）另成一個「wall」網格：UV 直接用公尺（x/z 對 u、y 對 v），
+//   匯出時掛一張 1 m × 1 m 的無縫灰階紋理重複貼、頂點色（wallColor）染色；沒指定紋理就維持純色。
 // 每款的數字在 specs.ts 的表；共用的尺寸和顏色在下面 KIT。
 
 import * as THREE from "three";
@@ -38,6 +40,12 @@ export type DecalSlot = "storefront" | "banner" | "cube" | "vsign" | "window";
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 const UNIT_CYL = new THREE.CylinderGeometry(1, 1, 1, 16);
 const UNIT_PLANE = new THREE.PlaneGeometry(1, 1);
+// 貼圖面片的 UV 改成 glTF 慣例（v=0 是圖的上緣）。GLTFExporter 不翻 UV，只翻「內嵌」的圖片；
+// 我們的 PNG 是外掛的不會被翻，不先翻 UV 的話遊戲裡每張圖都上下顛倒
+{
+  const uv = UNIT_PLANE.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
+}
 
 // 把一塊純色幾何（縮放、擺位、可旋轉）塞進 parts；顏色寫進頂點色，最後合併成一個網格
 function addBlock(
@@ -81,6 +89,22 @@ function addDecal(
   list.push(g);
 }
 
+// 牆體 UV：依每個面的法線把位置投影成公尺（正面/背面用 x,y；側面用 z,y；頂面用 x,z），
+// 紋理一張 = 1 m，牆和柱子跨過去也接得起來。v 用 -y：glTF 的 v 往下是圖的下方，y 往上要往圖的上方走
+function projectMeterUV(g: THREE.BufferGeometry): void {
+  const pos = g.attributes.position;
+  const nor = g.attributes.normal;
+  const uv = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i++) {
+    const nx = Math.abs(nor.getX(i)), ny = Math.abs(nor.getY(i)), nz = Math.abs(nor.getZ(i));
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    if (nz >= nx && nz >= ny) (uv[i * 2] = x), (uv[i * 2 + 1] = -y);
+    else if (nx >= ny) (uv[i * 2] = z), (uv[i * 2 + 1] = -y);
+    else (uv[i * 2] = x), (uv[i * 2 + 1] = z);
+  }
+  g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+}
+
 export interface Shophouse {
   root: THREE.Group; // 正面 +Z 貼在 z=0，地面 y=0，面寬置中
   width: number; // 面寬（沿路方向）
@@ -103,6 +127,7 @@ export interface ShophouseSpec {
   seed: number; // 鐵窗偏移的亂數種子
   store?: string; // 店家資料夾名（public/assets/decals/stores/<store>/），四個店家槽貼它的圖
   windows?: string; // 鐵窗圖名（public/assets/decals/windows/<windows>.png）
+  wall?: string; // 牆面紋理名（public/assets/decals/walls/<wall>.png，灰階、代表 1 m × 1 m、四邊無縫），由 wallColor 染色。省略 = 純色
 }
 
 // mulberry32：可餵種子的亂數，同 seed 同結果
@@ -133,19 +158,20 @@ export function makeShophouse(spec: ShophouseSpec): Shophouse {
   const EPS = 0.012; // 貼圖面片離牆面一點點，免得閃爍
 
   const parts: THREE.BufferGeometry[] = [];
+  const wallParts: THREE.BufferGeometry[] = []; // 牆體（貼磁磚紋理的部分）
   const decals = new Map<DecalSlot, THREE.BufferGeometry[]>();
 
   // 一樓：騎樓（內縮）＋兩根柱子＋店面內牆
   const a = s.arcadeDepth;
-  addBlock(parts, UNIT_BOX, wall, [w, fh, d - a], [0, fh / 2, -a - (d - a) / 2]);
+  addBlock(wallParts, UNIT_BOX, wall, [w, fh, d - a], [0, fh / 2, -a - (d - a) / 2]);
   for (const sx of [-1, 1]) {
-    addBlock(parts, UNIT_BOX, wall, [s.pillar, fh, a], [sx * (w / 2 - s.pillar / 2), fh / 2, -a / 2]);
+    addBlock(wallParts, UNIT_BOX, wall, [s.pillar, fh, a], [sx * (w / 2 - s.pillar / 2), fh / 2, -a / 2]);
   }
   const shopW = w - 2 * s.pillar - 0.2;
   addDecal(decals, "storefront", "z", [0, fh / 2, -a + EPS], shopW, fh - 0.3);
 
   // 二樓以上：一整塊
-  addBlock(parts, UNIT_BOX, wall, [w, H - fh, d], [0, fh + (H - fh) / 2, -d / 2]);
+  addBlock(wallParts, UNIT_BOX, wall, [w, H - fh, d], [0, fh + (H - fh) / 2, -d / 2]);
   // 樓板線（深色細條，讓樓層有分界）
   for (let f = 2; f <= floors; f++) {
     addBlock(parts, UNIT_BOX, dark, [w + 0.04, 0.12, 0.06], [0, f * fh - 0.06, 0.03]);
@@ -201,8 +227,8 @@ export function makeShophouse(spec: ShophouseSpec): Shophouse {
   }
 
   // 屋頂：女兒牆＋水塔
-  addBlock(parts, UNIT_BOX, wall, [w + 0.1, 0.6, 0.2], [0, H + 0.3, -0.1]);
-  for (const sx of [-1, 1]) addBlock(parts, UNIT_BOX, wall, [0.2, 0.6, d], [sx * (w / 2 - 0.05), H + 0.3, -d / 2]);
+  addBlock(wallParts, UNIT_BOX, wall, [w + 0.1, 0.6, 0.2], [0, H + 0.3, -0.1]);
+  for (const sx of [-1, 1]) addBlock(wallParts, UNIT_BOX, wall, [0.2, 0.6, d], [sx * (w / 2 - 0.05), H + 0.3, -d / 2]);
   const t = s.tank;
   addBlock(parts, UNIT_BOX, dark, [t.base, t.baseH, t.base], [w * 0.2, H + t.baseH / 2, -d * 0.5]);
   addBlock(parts, UNIT_CYL, new THREE.Color(s.tankColor), [t.r, t.h, t.r], [w * 0.2, H + t.baseH + t.h / 2, -d * 0.5]);
@@ -211,6 +237,11 @@ export function makeShophouse(spec: ShophouseSpec): Shophouse {
   const body = new THREE.Mesh(mergeGeometries(parts), new THREE.MeshLambertMaterial({ vertexColors: true }));
   body.name = "body";
   root.add(body);
+  const wallGeo = mergeGeometries(wallParts);
+  projectMeterUV(wallGeo);
+  const wallMesh = new THREE.Mesh(wallGeo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  wallMesh.name = "wall"; // 匯出時若 spec.wall 有指定就掛上紋理（頂點色染色）
+  root.add(wallMesh);
   for (const [slot, list] of decals) {
     const mesh = new THREE.Mesh(mergeGeometries(list), new THREE.MeshLambertMaterial({ color: 0xffffff }));
     mesh.name = `decal_${slot}`; // 貼圖在遊戲載入時才由 applyDecals 貼上
