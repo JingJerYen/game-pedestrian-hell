@@ -102,6 +102,7 @@ function startLevel(index: number): void {
   LAYOUT.right = lv.sidewalkRight ?? "normal";
   player.setForm(lv.playerForm);
   player.reset(); // 出發點依 LAYOUT（有人行道從人行道出發）
+  cameraYaw = 0; // 鏡頭回到正後方（人物 reset 後面向前方）
   traffic.reset();
   obstacles.reset();
   intersections.reset();
@@ -176,6 +177,7 @@ if ("ontouchstart" in window) {
 // 鏡頭：馬力歐賽車式——在玩家後方偏低，橫移時稍微跟過去。
 // 直式畫面（手機豎拿）自動改用 cameraPortrait 那組參數。
 let cameraX = 0;
+let cameraYaw = 0; // 目前鏡頭繞到人物哪個方向（弧度，0 = 正後方），朝目標平滑收斂
 function updateCamera(dt: number): void {
   const t = TUNING;
   const portrait = camera.aspect < 1;
@@ -193,8 +195,16 @@ function updateCamera(dt: number): void {
     t.cameraXDamp,
     dt,
   );
-  camera.position.set(cameraX, height, distance);
-  camera.lookAt(cameraX, 0.8, -lookAhead);
+  // 鏡頭繞到人物背後：跟著人物「目前的朝向」（mesh.rotation.y，0 = 面向前方），
+  // 走最短弧度平滑追上；放開按鍵人物不轉，鏡頭就停在那裡
+  const targetYaw = player.mesh.rotation.y * t.cameraOrbit.ratio;
+  const delta = Math.atan2(Math.sin(targetYaw - cameraYaw), Math.cos(targetYaw - cameraYaw));
+  cameraYaw += delta * (1 - Math.exp(-t.cameraOrbit.damp * dt));
+  const sin = Math.sin(cameraYaw);
+  const cos = Math.cos(cameraYaw);
+  // 以人物為圓心：正後方 (0, height, distance) 繞 Y 軸轉 cameraYaw；視線焦點同樣轉
+  camera.position.set(cameraX + distance * sin, height, distance * cos);
+  camera.lookAt(cameraX - lookAhead * sin, 0.8, -lookAhead * cos);
 }
 
 const clock = new THREE.Clock();
@@ -212,9 +222,21 @@ renderer.setAnimationLoop(() => {
   } else if (state === "running") {
     // 世界捲動量由玩家輸入決定；車輛自己的車速在 traffic 裡另外加
     // （行人速度：關卡有覆寫就用關卡的，沒有就用全域預設）
+    // 按鍵 → 世界方向：mx = 往馬路右邊的量、mz = 往馬路後方的量（-1 ~ 1）。
+    // keysFollowCamera 時先把按鍵從「畫面座標」轉成世界座標（鏡頭看向哪，↑ 就往哪）
+    const ix = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
+    const iz = held.has("up") ? 1 : held.has("down") ? -1 : 0;
+    let mx = ix;
+    let mz = -iz;
+    if (TUNING.cameraOrbit.keysFollowCamera) {
+      const s = Math.sin(cameraYaw);
+      const c = Math.cos(cameraYaw);
+      mx = -iz * s + ix * c;
+      mz = -iz * c - ix * s;
+    }
     let dz = 0;
-    if (held.has("up")) dz = (lv.walkSpeed ?? TUNING.walkSpeed) * dt;
-    else if (held.has("down")) dz = -(lv.backSpeed ?? TUNING.backSpeed) * dt;
+    if (mz < -1e-3) dz = (lv.walkSpeed ?? TUNING.walkSpeed) * -mz * dt;
+    else if (mz > 1e-3) dz = -(lv.backSpeed ?? TUNING.backSpeed) * mz * dt;
     dz = Math.max(dz, -position); // 不能退到起點之前
     dz = obstacles.clampScroll(player.mesh.position, player.size, dz); // 被路障擋住
 
@@ -227,9 +249,8 @@ renderer.setAnimationLoop(() => {
       traffic.anyVehicleIn(x0, x1, z0, z1),
     ); // 生成點有車就不生（不然路障會砸在車上）
     traffic.update(dt, dz, obstacles, lv, intersections);
-    const dirX = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
-    const dirZ = held.has("up") ? 1 : held.has("down") ? -1 : 0;
-    player.update(dt, dirX, dirZ, lv.strafeSpeed ?? TUNING.strafeSpeed, obstacles, dz);
+    // 橫移量與朝向都用世界方向（可以是小數：斜著走就是斜的）
+    player.update(dt, mx, -mz, lv.strafeSpeed ?? TUNING.strafeSpeed, obstacles, dz);
 
     position += dz;
     maxDistance = Math.max(maxDistance, position);
