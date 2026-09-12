@@ -84,10 +84,12 @@ export const TUNING = {
       speedMax: 16,
       weight: 0.35,
       wander: 0.7,
-      // 機車顏色：車流的機車（目前是純色方塊）用這些色；停放的 Gogoro 也把白車身換成這些色，一色一款
-      colors: [0xffffff, 0x59ffff, 0xffc863, 0x82ff82], // 亮色系：純白、亮藍、亮黃、亮綠
-      // 「白色車身」的判定：彩度低於 maxSat 且亮度高於 minLight 的像素才換色（黑色零件不動）
-      whiteBand: { maxSat: 0.35, minLight: 0.75 }, // 寬一點才吃得到 JPEG 邊緣的雜訊像素
+      // 車流機車（motor1，紅車身＋騎士）的車身色：貼圖上的紅色換成這些，一色一款
+      colors: [0xd23b3b, 0x333338, 0xf2f2f2, 0x8a8f96], // 紅、黑、白、銀
+      redBand: { hueMin: -30, hueMax: 25, minSat: 0.3 }, // 「紅色車身」的判定（色相 ±、彩度下限）
+      // 停放機車（gogoro，白車身）的車身色：貼圖上的白色換成這些，一色一款
+      parkedColors: [0xffffff, 0x59ffff, 0xffc863, 0x82ff82], // 亮色系：純白、亮藍、亮黃、亮綠
+      whiteBand: { maxSat: 0.35, minLight: 0.75 }, // 「白色車身」的判定：彩度低、亮度高（寬一點才吃得到 JPEG 邊緣雜訊）
     },
     car: {
       size: { x: 1.9, y: 1.4, z: 4.2 },

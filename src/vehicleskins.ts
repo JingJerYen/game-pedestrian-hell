@@ -5,7 +5,7 @@
 // 街景自動有變化。模型會等比縮放到 tuning.ts 碰撞箱的長度、貼齊地面，
 // 所以視覺跟判定永遠對得上。Kenney 模型車頭朝 +Z，跟迎面車朝向一致。
 // 還沒有模型的車種（bike）自動用純色方塊，補上 glb 就換。
-// 停放機車（gogoro）的白車身在載入時換成多種顏色，一色一款（recolorWhiteVariants）。
+// 機車的車身（motor1 紅、gogoro 白）在載入時換成多種顏色，一色一款（recolorVariants）。
 
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -25,17 +25,30 @@ const MODEL_VARIANTS: Record<string, string[]> = {
     "police",
   ],
   truck: ["truck", "truck-flat", "delivery", "garbage-truck"],
-  // 車流機車：還沒有（有騎士的）模型，先用純色方塊
-  scooter: [],
-  // 停放機車（機車格、人行道路障）：Gogoro，白車身換成 TUNING.vehicles.scooter.colors 的顏色，一色一款
+  // 車流機車：motor1（Tripo 生成，紅車身＋騎士），紅色車身換成 scooter.colors，一色一款
+  scooter: ["motor1"],
+  // 停放機車（機車格、人行道路障）：gogoro（白車身），白色換成 scooter.parkedColors，一色一款
   parkedScooter: ["gogoro"],
 };
-// 車頭不是朝 +Z 的模型，載入時先繞 Y 軸轉正（弧度）。gogoro 車頭朝 -X → +90°
+// 車頭不是朝 +Z 的模型，載入時先繞 Y 軸轉正（弧度）。motor1 車頭朝 +X → -90°；gogoro 朝 -X → +90°
 const MODEL_ROTATION_Y: Record<string, number> = {
+  motor1: -Math.PI / 2,
   gogoro: Math.PI / 2,
 };
-// 要做「白色部分換色」的模型
-const RECOLOR_WHITE = new Set(["gogoro"]);
+// 車身換色設定：哪些像素算「車身」（用 HSL 判定）、要換成哪些顏色
+const sc = TUNING.vehicles.scooter;
+const RECOLOR: Record<string, { colors: readonly number[]; isBody: (h: number, s: number, l: number) => boolean }> = {
+  motor1: {
+    colors: sc.colors,
+    isBody: (h, s) =>
+      s >= sc.redBand.minSat &&
+      (((h - sc.redBand.hueMin) % 360) + 360) % 360 <= sc.redBand.hueMax - sc.redBand.hueMin,
+  },
+  gogoro: {
+    colors: sc.parkedColors,
+    isBody: (_h, s, l) => s < sc.whiteBand.maxSat && l > sc.whiteBand.minLight,
+  },
+};
 
 // 載好並「規格化」（縮放到碰撞箱、置中、貼地）的模型原型，clone 出去用
 const modelPools = new Map<string, THREE.Object3D[]>();
@@ -72,7 +85,8 @@ export function preloadVehicleSkins(): void {
           const proto = normalize(scene, size);
           let pool = modelPools.get(kind);
           if (!pool) modelPools.set(kind, (pool = []));
-          if (RECOLOR_WHITE.has(name)) pool.push(...recolorWhiteVariants(proto, TUNING.vehicles.scooter.colors));
+          const recolor = RECOLOR[name];
+          if (recolor) pool.push(...recolorVariants(proto, recolor));
           else pool.push(proto);
         },
         undefined,
@@ -110,9 +124,12 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   return [r + m, g + m, b + m];
 }
 
-// 白色部分換色：貼圖上「幾乎沒彩度、很亮」的像素（白車身）換成目標色，保留明暗；
-// 黑色零件不動。每個顏色生一款原型。材質用無反光的 Lambert（跟汽車一樣的純色塊感）
-function recolorWhiteVariants(proto: THREE.Object3D, colors: readonly number[]): THREE.Object3D[] {
+// 車身換色：貼圖上被 isBody 判定為車身的像素換成目標色（保留明暗變化），其他像素不動。
+// 每個顏色生一款原型。材質用無反光的 Lambert（跟汽車一樣的純色塊感）
+function recolorVariants(
+  proto: THREE.Object3D,
+  cfg: { colors: readonly number[]; isBody: (h: number, s: number, l: number) => boolean },
+): THREE.Object3D[] {
   let source: THREE.MeshStandardMaterial | null = null;
   proto.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
@@ -134,33 +151,39 @@ function recolorWhiteVariants(proto: THREE.Object3D, colors: readonly number[]):
   ctx.drawImage(image, 0, 0);
   const base = ctx.getImageData(0, 0, w, h);
   const n = w * h;
-  const t = TUNING.vehicles.scooter.whiteBand;
 
-  // 找出白色像素，順便算平均亮度（換色時當基準）
-  const isWhite = new Uint8Array(n);
+  // 找出車身像素，順便算平均彩度/亮度（換色時當基準，保留原本的明暗變化）
+  const isBody = new Uint8Array(n);
+  const sat = new Float32Array(n);
   const light = new Float32Array(n);
+  let sumS = 0;
   let sumL = 0;
   let count = 0;
   for (let i = 0; i < n; i++) {
-    const [, s, l] = rgbToHsl(base.data[i * 4] / 255, base.data[i * 4 + 1] / 255, base.data[i * 4 + 2] / 255);
-    if (s < t.maxSat && l > t.minLight) {
-      isWhite[i] = 1;
+    const [hh, s, l] = rgbToHsl(base.data[i * 4] / 255, base.data[i * 4 + 1] / 255, base.data[i * 4 + 2] / 255);
+    if (cfg.isBody(hh, s, l)) {
+      isBody[i] = 1;
+      sat[i] = s;
       light[i] = l;
+      sumS += s;
       sumL += l;
       count++;
     }
   }
-  const refL = count ? sumL / count : 0.9;
+  const refS = count ? sumS / count : 0.5;
+  const refL = count ? sumL / count : 0.5;
 
   const tmp = new THREE.Color();
-  return colors.map((hex) => {
+  return cfg.colors.map((hex) => {
     tmp.set(hex);
     const [th, ts, tl] = rgbToHsl(tmp.r, tmp.g, tmp.b);
     const img = ctx.createImageData(w, h);
     img.data.set(base.data);
     for (let i = 0; i < n; i++) {
-      if (!isWhite[i]) continue;
-      const [r, g, b] = hslToRgb(th, ts, Math.min(1, Math.max(0, tl + (light[i] - refL))));
+      if (!isBody[i]) continue;
+      // 白車身原本沒彩度，直接用目標彩度；紅車身照比例縮放
+      const s2 = refS < 0.1 ? ts : Math.min(1, ts * (sat[i] / refS));
+      const [r, g, b] = hslToRgb(th, s2, Math.min(1, Math.max(0, tl + (light[i] - refL))));
       img.data[i * 4] = r * 255;
       img.data[i * 4 + 1] = g * 255;
       img.data[i * 4 + 2] = b * 255;
