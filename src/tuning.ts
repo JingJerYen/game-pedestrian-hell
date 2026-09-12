@@ -84,13 +84,10 @@ export const TUNING = {
       speedMax: 16,
       weight: 0.35,
       wander: 0.7,
-      // 車身顏色：motor1 模型載入時把貼圖上的紅色車身換成這些色（vehicleskins.ts 換色）
-      colors: [0xd23b3b, 0x333338, 0xf2f2f2, 0x8a8f96], // 紅、黑、白、銀
-      // 停放機車（Gogoro，沒騎士，只當停車格裡的車）車身色：白色部位染色
-      gogoroColors: [0xffffff, 0x59ffff, 0xffc863, 0x82ff82], // 亮色系：純白、亮藍、亮黃、亮綠
-      // 騎士衣服顏色：貼圖上的藍色衣服換成這些
-      riderColors: [0x2f6fb5, 0x333338, 0xe8e8e8, 0x7a4b9c, 0x3f8f5a, 0xc9752c, 0x8f6b4e],
-      recolorVariants: 8, // 一次生出幾款配色（車身依序輪、衣服隨機配）
+      // 機車顏色：車流的機車（目前是純色方塊）用這些色；停放的 Gogoro 也把白車身換成這些色，一色一款
+      colors: [0xffffff, 0x59ffff, 0xffc863, 0x82ff82], // 亮色系：純白、亮藍、亮黃、亮綠
+      // 「白色車身」的判定：彩度低於 maxSat 且亮度高於 minLight 的像素才換色（黑色零件不動）
+      whiteBand: { maxSat: 0.35, minLight: 0.75 }, // 寬一點才吃得到 JPEG 邊緣的雜訊像素
     },
     car: {
       size: { x: 1.9, y: 1.4, z: 4.2 },

@@ -249,7 +249,7 @@ export class Obstacles {
 
   // 停放的機車：模型車頭朝 +Z，rotationY = ±90° 橫停（碰撞箱 x 長 z 窄）、0/180° 沿路停
   private addParkedScooter(col: number, x: number, z: number, size: Size3, rotationY: number): void {
-    const mesh = makeVehicleMesh("parkedScooter", 0xdddddd);
+    const mesh = makeVehicleMesh("parkedScooter", 0xdddddd); // 缺模型時是淺灰色塊
     mesh.position.set(x, size.y / 2, z);
     mesh.rotation.y = rotationY;
     this.scene.add(mesh);
