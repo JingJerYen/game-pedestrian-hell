@@ -9,6 +9,7 @@ function el(id: string): HTMLElement {
 export class Hud {
   private readonly hearts = el("hearts");
   private readonly level = el("level");
+  private readonly goal = el("goal");
   private readonly progress = el("progress");
   private readonly timer = el("timer");
   private readonly bannerLoading = el("banner-loading");
@@ -26,6 +27,8 @@ export class Hud {
   private readonly failSub = el("fail-sub");
   private readonly failPrompt = el("fail-prompt");
   private readonly win = el("win");
+  private readonly winTitle = el("win-title");
+  private readonly winFlavor = el("win-flavor");
   private readonly winPrompt = el("win-prompt");
   private readonly camToggle = el("cam-toggle") as HTMLButtonElement;
   private promptTimer = 0; // 延遲顯示「按任意鍵」的計時器
@@ -40,6 +43,11 @@ export class Hud {
   }
   setCameraModeLabel(text: string): void {
     this.camToggle.textContent = text;
+  }
+
+  // 這關的目的地任務，整關掛在狀態列（空字串 = 不顯示，無盡模式用）
+  setGoal(text: string): void {
+    this.goal.textContent = text;
   }
 
   // hearts = null：不顯示命（無盡模式一條命）；timeLeft = Infinity：沒有時限，第四列改顯示 extraText（最遠紀錄）
@@ -124,11 +132,15 @@ export class Hud {
     }, promptDelayMs);
   }
 
-  showWin(promptDelayMs: number): void {
+  // 抵達畫面：title = 「到了！全聯」、flavor = 過關字幕（空字串不顯示）；
+  // promptDelayMs 過後才顯示「按任意鍵」（沒按的話 main.ts 時間到自動進下一關）
+  showClear(title: string, flavor: string, promptDelayMs: number): void {
+    this.winTitle.textContent = title;
+    this.winFlavor.textContent = flavor;
     this.winPrompt.textContent = "";
     this.win.classList.add("show");
     this.promptTimer = window.setTimeout(() => {
-      this.winPrompt.textContent = "按任意鍵再走一輪";
+      this.winPrompt.textContent = "按任意鍵繼續";
     }, promptDelayMs);
   }
 

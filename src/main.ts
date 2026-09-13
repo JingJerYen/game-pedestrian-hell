@@ -1,6 +1,6 @@
 // 進入點：組裝所有模組、跑遊戲迴圈、管理關卡狀態機。
 // 狀態流：levelStart（橫幅，自動開始）→ running →
-//   過關 → 下一關 levelStart（手寫關卡全過 → 無盡模式）
+//   過關 → clear（抵達畫面，停 clearSeconds 秒或按鍵）→ 下一關 levelStart（手寫關卡全過 → 無盡模式）
 //   失敗（被撞/超時）→ fail（扣一❤）→ 按鍵重來本關；❤用完 → 按鍵回第一關
 // 無盡模式（levelIndex === LEVELS.length）：沒終點沒時限、一條命，難度隨距離爬（levelgen.ts）；
 //   死了結算最遠距離，按鍵從無盡起點再來
@@ -85,7 +85,7 @@ window.addEventListener("keyup", (e) => {
 
 // ── 關卡狀態 ──
 // （沒有「全破」狀態：手動關卡表走完就接無盡模式，見 levelgen.ts）
-let state: "levelStart" | "running" | "fail" = "levelStart";
+let state: "levelStart" | "running" | "clear" | "fail" = "levelStart";
 let levelIndex = 0;
 const ENDLESS_INDEX = LEVELS.length; // 手寫關卡之後就是無盡模式（只有這一個 index）
 function isEndless(): boolean {
@@ -98,7 +98,7 @@ let timeLeft = 0; // 本關剩餘秒數
 let bannerTimer = 0; // 開場橫幅倒數，歸零自動開始（素材載完才開始倒）
 let loadWait = 0; // 這次開場已經等素材幾秒（超過 TUNING.loadWaitMax 就不等了）
 let resultAt = 0; // 失敗/通關畫面出現的時間戳：停留滿 resultHoldSeconds 才接受按鍵
-let justCleared = false; // 剛過關（下一關的橫幅要抽一條過關字幕）
+let clearTimer = 0; // 抵達畫面剩幾秒自動進下一關
 let endlessStageShown = 0; // 無盡模式目前顯示到第幾階（升階時跳提示）
 
 // 無盡模式最遠紀錄（存在瀏覽器；無痕模式等讀不到就當 0）
@@ -158,18 +158,17 @@ function startLevel(index: number): void {
   else if (showDist) goalText = `走到 ${lv.goalDistance}m`;
   else if (showSide) goalText = `終點在${sideText}人行道`;
   else goalText = "自己找到終點";
-  // 剛過關的話抽一條過關字幕，跟這一關自己的風味小語並排
-  const clearLine = justCleared ? pickFrom(TUNING.clearFlavors) : "";
-  justCleared = false;
   // 小語：關卡有覆寫就用覆寫，否則用目的地總表那句
   const destFlavor = lv.destination ? TUNING.destinations[lv.destination]?.flavor ?? "" : "";
-  const flavor = [clearLine, lv.flavorText ?? destFlavor].filter(Boolean).join("｜");
+  const flavor = lv.flavorText ?? destFlavor;
+  // 目的地任務整關掛在 HUD 左上角（無盡模式沒有目的地）
+  hud.setGoal(isEndless() ? "" : [`🎯 ${lv.destination ?? "終點"}`, flavor].filter(Boolean).join("｜"));
   if (isEndless()) {
     const e = TUNING.endless;
     const best = bestDistance > 0 ? `｜最遠紀錄 ${Math.floor(bestDistance)} m` : "";
     hud.showBanner(
       "無盡模式",
-      [clearLine, e.entryFlavor].filter(Boolean).join("｜"),
+      e.entryFlavor,
       `${FORM_LABEL[lv.playerForm]}｜沒有終點，看你能走多遠｜每 ${e.stageLength} m 難一點${best}`,
     );
   } else {
@@ -179,9 +178,23 @@ function startLevel(index: number): void {
       `${FORM_LABEL[lv.playerForm]}｜${goalText}｜時限 ${lv.timeLimit} 秒`,
     );
   }
-  bannerTimer = 2.0;
+  bannerTimer = TUNING.bannerSeconds;
   loadWait = 0;
   state = "levelStart";
+}
+
+// 抵達終點：出抵達畫面，停 clearSeconds 秒（或停滿 resultHoldSeconds 後按鍵）進下一關
+function clearLevel(): void {
+  const lv = level();
+  state = "clear";
+  clearTimer = TUNING.clearSeconds;
+  resultAt = performance.now();
+  hud.showClear(`到了！${lv.destination ?? "終點"}`, pickFrom(TUNING.clearFlavors), TUNING.resultHoldSeconds * 1000);
+}
+
+// 抵達畫面之後進下一關（手寫關卡全過就是無盡模式）
+function advanceLevel(): void {
+  startLevel(levelIndex + 1);
 }
 
 // 開場要等的素材：街屋、車輛（含道具）、玩家角色。全部到了（或載失敗）才開始
@@ -263,7 +276,9 @@ function tryAdvance(): void {
   if (pendingFail) return; // 撞擊效果還在播、失敗畫面還沒出來
   // 停留滿 resultHoldSeconds 才接受，避免玩家還在狂按方向鍵就跳過了
   if (performance.now() - resultAt < TUNING.resultHoldSeconds * 1000) return;
-  if (state === "fail") {
+  if (state === "clear") {
+    advanceLevel();
+  } else if (state === "fail") {
     if (isEndless()) {
       startLevel(ENDLESS_INDEX); // 無盡模式：從無盡起點再走一次
     } else if (hearts > 0) {
@@ -514,14 +529,18 @@ renderer.setAnimationLoop(() => {
         : px > (hasSidewalk("right") ? BG_RIGHT : BG_RIGHT - TUNING.laneWidth));
     const hitBy = traffic.hitsPlayer(player);
     if (reached && sideOk) {
-      // 過關：手寫關卡全過就進無盡模式（無盡模式 goalDistance 是 Infinity，永遠不會到這裡）
-      justCleared = true;
-      startLevel(levelIndex + 1);
+      // 過關（無盡模式 goalDistance 是 Infinity，永遠不會到這裡）
+      clearLevel();
     } else if (hitBy) {
       failLevel(hitBy); // 依兇手車種顯示對應的死亡字幕
     } else if (timeLeft <= 0) {
       failLevel("timeout"); // 無盡模式 timeLeft 是 Infinity，不會超時
     }
+  } else if (state === "clear") {
+    // 抵達畫面：車流照跑當背景，時間到自動進下一關
+    traffic.update(dt, 0, obstacles, lv, intersections);
+    clearTimer -= dt;
+    if (clearTimer <= 0) advanceLevel();
   } else if (state === "fail" && hitT >= 0) {
     // 撞擊效果：定格（世界與動畫都停）→ 慢動作（車流慢慢跑、人慢慢倒）→ 出失敗畫面；
     // 之後車流繼續用慢動作跑（撞你的車會自己開走，第一人稱躺在地上才不會卡在車子裡面）

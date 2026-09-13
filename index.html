@@ -77,6 +77,14 @@
       #timer.low {
         color: #ff8080;
       }
+      /* 這關的目的地任務（「全聯｜特價只到今天」），整關都掛在左上角；空的不佔位 */
+      #goal {
+        color: #ffd97a;
+        font-size: 19px;
+      }
+      #goal:empty {
+        display: none;
+      }
       /* 無盡模式升階提示：畫面中上方浮出、2 秒淡出（hud.ts showToast） */
       #toast {
         position: fixed;
@@ -175,7 +183,7 @@
       #fail-flavor:empty {
         display: none;
       }
-      /* 通關畫面：細節未定，先佔位 */
+      /* 抵達畫面 */
       #win {
         background: rgba(0, 90, 45, 0.5);
       }
@@ -249,6 +257,7 @@
     <div id="hud">
       <div id="hearts">❤ ❤ ❤</div>
       <div class="row" id="level"></div>
+      <div class="row" id="goal"></div>
       <div class="row" id="progress"></div>
       <div class="row" id="timer"></div>
     </div>
@@ -265,9 +274,10 @@
       <p id="fail-sub"></p>
       <p id="fail-prompt"></p>
     </div>
+    <!-- 抵達畫面（文字由 hud.ts 的 showClear 塞入） -->
     <div id="win" class="overlay">
-      <h1>🎉 恭喜通關！</h1>
-      <p>你在行人地獄活了下來</p>
+      <h1 id="win-title"></h1>
+      <p id="win-flavor"></p>
       <p id="win-prompt"></p>
     </div>
     <div id="debug"></div>

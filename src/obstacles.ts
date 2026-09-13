@@ -216,10 +216,14 @@ export class Obstacles {
       if (Math.random() >= p.occupancy) continue;
       const stallZ = centerZ - len / 2 + (i + 0.5) * p.stallDepth;
       if (kind === "car") {
-        // 停車格汽車：Kenney 模型，車頭隨機朝前朝後（路邊停車的日常）
+        // 停車格汽車：Kenney 模型，車頭隨機朝前朝後（路邊停車的日常）。
+        // 貼著停車格靠建築那側的邊緣停（差 edgeGap），縫留在靠馬路那側
+        const b = t.parking.types.car.blockSize;
+        const gap = t.parking.types.car.edgeGap + b.x / 2;
+        const carX = col === 0 ? ROAD_LEFT - p.stripWidth + gap : BG_RIGHT + p.stripWidth - gap;
         this.addParkedCar(
           col,
-          stripX,
+          carX,
           stallZ,
           p.blockSize,
           Math.random() < 0.5 ? 0 : Math.PI,
