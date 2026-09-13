@@ -57,7 +57,9 @@ function generate(index: number): LevelConfig {
   const playerForm: PlayerForm =
     roll < w.walker ? "walker" : roll < w.walker + w.stroller ? "stroller" : "wheelchair";
 
-  const dest = e.destinations[Math.floor(rng() * e.destinations.length)];
+  // 目的地：從 TUNING.destinations 總表隨機抽一個（小語和貼皮跟著 key 走）
+  const destKeys = Object.keys(TUNING.destinations);
+  const destination = destKeys[Math.floor(rng() * destKeys.length)];
   // 人行道樣式：左右各照權重抽一次
   const sw = e.sidewalkWeights;
   const pickSidewalk = (): SidewalkStyle => {
@@ -84,8 +86,8 @@ function generate(index: number): LevelConfig {
     turnChance: lerp(TUNING.intersection.turnChance, e.turnChanceEnd),
     bikeInterval: lerp(e.bikeIntervalStart, e.bikeIntervalEnd) * jitter(0.15),
     goalSide: rng() < 0.5 ? "left" : "right",
-    destinationLabel: dest.label,
-    flavorText: depth === 1 ? e.entryFlavor : dest.flavor,
+    destination,
+    flavorText: depth === 1 ? e.entryFlavor : undefined, // 無限第一關用入場小語蓋掉目的地那句
     hideSideHint: depth > e.sideHintUntil,
     sidewalkLeft,
     sidewalkRight,

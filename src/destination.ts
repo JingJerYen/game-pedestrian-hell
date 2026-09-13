@@ -22,7 +22,7 @@ export class Destination {
     // 快接近終點時才生成（在霧裡出現，玩家看不到跳變）
     if (!level.goalSide || level.goalDistance - position > 110) return;
     this.side = level.goalSide;
-    this.group = makeDestinationBuilding(level.destinationLabel ?? "終點");
+    this.group = makeDestinationBuilding(level.destination ?? "終點");
     // 貼著建築前緣那條線（有人行道在人行道外、沒有就在車道邊）
     const x = buildingLineX(this.side) + (this.side === "left" ? -4.5 : 4.5);
     this.group.position.set(x, 0, -(level.goalDistance - position));

@@ -8,12 +8,14 @@
 
 ```
 destinations/
-  pxmart.jpg     全聯（招牌字「全聯」）
-  office.jpg     商辦大樓（「公司」）
+  pixmart.jpg    全聯（招牌字「全聯」）
+  business.jpg   商辦大樓（「公司」）
   hospital.jpg   醫院（「醫院」）
-  nursery.jpg    托嬰中心（「托嬰中心」）
-  school.jpg     學校（「學校」）
+  bank.jpg       銀行（「銀行」）
+  shopee.jpg     蝦皮店到店（「超商」）
 ```
+
+原圖（1086 × 1448 PNG）不進版控；要重壓：`python3 -c` 用 Pillow 縮到 384×512、JPG 品質 50～75，壓到 40 KB 以下。
 
 ## 規格
 

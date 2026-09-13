@@ -130,7 +130,9 @@ function startLevel(index: number): void {
   // 剛過關的話抽一條過關字幕，跟這一關自己的風味小語並排
   const clearLine = justCleared ? pickFrom(TUNING.clearFlavors) : "";
   justCleared = false;
-  const flavor = [clearLine, lv.flavorText ?? ""].filter(Boolean).join("｜");
+  // 小語：關卡有覆寫就用覆寫，否則用目的地總表那句
+  const destFlavor = lv.destination ? TUNING.destinations[lv.destination]?.flavor ?? "" : "";
+  const flavor = [clearLine, lv.flavorText ?? destFlavor].filter(Boolean).join("｜");
   hud.showBanner(
     `第 ${index + 1} 關`,
     flavor,

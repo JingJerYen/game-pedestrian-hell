@@ -786,12 +786,13 @@ function makeSignTexture(label: string): THREE.Texture {
   return new THREE.CanvasTexture(canvas);
 }
 
-// 目的地貼皮：開場就把 TUNING.destinationSkins 列的 JPG 全部載進來（每張都很小），
+// 目的地貼皮：開場就把 TUNING.destinations 裡有 skin 的 JPG 全部載進來（每張都很小），
 // 生成建築時有圖就貼、沒圖（沒列或載失敗）就用米色方塊＋canvas 招牌
 const destinationTextures = new Map<string, THREE.Texture>(); // label → 貼圖（只放載成功的）
 {
   const loader = new THREE.TextureLoader();
-  for (const [label, file] of Object.entries(TUNING.destinationSkins)) {
+  for (const [label, { skin: file }] of Object.entries(TUNING.destinations)) {
+    if (!file) continue;
     loader.load(
       `${import.meta.env.BASE_URL}assets/decals/destinations/${file}.jpg`,
       (tex) => {

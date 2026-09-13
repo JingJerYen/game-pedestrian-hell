@@ -238,16 +238,18 @@ export const TUNING = {
   // ── 命 ──
   maxHearts: 5, // 失敗扣一條，用完從第一關重來
 
-  // ── 目的地建築的貼皮 ──
-  // 招牌字（destinationLabel）→ public/assets/decals/destinations/<檔名>.jpg（規格見那個資料夾的 README）。
-  // 有圖的目的地：方塊四面貼同一張立面圖；沒列在這裡或檔案不在的，維持米色方塊＋canvas 招牌
-  destinationSkins: {
-    公司: "office",
-    全聯: "pxmart",
-    醫院: "hospital",
-    托嬰中心: "nursery",
-    學校: "school",
-  } as Record<string, string>,
+  // ── 目的地總表 ──
+  // key = 招牌字。每個目的地配一句開場小語（橫幅顯示）和可選的貼皮圖。
+  // 手動關卡在 LEVELS 寫 destination: "公司" 就把小語和貼皮一起帶過去；無限模式從這張表隨機抽。
+  // skin = public/assets/decals/destinations/<檔名>.jpg（規格見那個資料夾的 README）；
+  // 有 skin 的目的地：方塊四面貼同一張立面圖；沒 skin 或檔案不在的，維持米色方塊＋canvas 招牌。想加場景就加一行。
+  destinations: {
+    公司: { flavor: "上班要遲到了啊啊啊", skin: "business" },
+    全聯: { flavor: "去超市買零食~", skin: "pixmart" },
+    蝦皮: { flavor: "取貨最後一天", skin: "shopee" },
+    醫院: { flavor: "回診快過號了", skin: "hospital" },
+    銀行: { flavor: "來去領錢", skin: "bank" },
+  } as Record<string, { flavor: string; skin?: string }>,
 
   // ── 後方來車警示（畫面上的紅色「!」＋喇叭聲）──
   // 只提醒「會撞到」的：從背後來、橫向會擦到、幾秒內會追上的車（含人行道腳踏車）
@@ -374,21 +376,7 @@ export const TUNING = {
     formWeights: { walker: 0.5, stroller: 0.3, wheelchair: 0.2 }, // 行人型態抽選權重
     sidewalkWeights: { normal: 0.6, asphalt: 0.25, none: 0.15 }, // 人行道樣式抽選權重（左右各抽一次）
     sideHintUntil: 4, // 無限模式第幾關之後，不再提示終點在哪側（自己找目的地大樓）
-    entryFlavor: "你以為到了？台灣的路是走不完的", // 進入無限模式第一關的橫幅小語
-    destinations: [
-      // 目的地招牌字 + 配套的風味小語（隨機抽）；想加場景就加一行
-      { label: "公司", flavor: "趕著打卡" },
-      { label: "全聯", flavor: "特價只到今天" },
-      { label: "超商", flavor: "包裹保存最後一天" },
-      { label: "郵局", flavor: "掛號快截止了" },
-      { label: "醫院", flavor: "回診快來不及了" },
-      { label: "托嬰中心", flavor: "寶寶快遲到了" },
-      { label: "學校", flavor: "家長日要開始了" },
-      { label: "夜市", flavor: "朋友已經在排隊" },
-      { label: "火車站", flavor: "火車不等人" },
-      { label: "銀行", flavor: "三點半前要軋進去" },
-      { label: "宮廟", flavor: "吉時快過了" },
-    ],
+    entryFlavor: "走路環保又健康，但是有點危險...", // 進入無限模式第一關的橫幅小語
   },
 
   // ── 碰撞 ──
@@ -435,8 +423,8 @@ export interface LevelConfig {
   // ↓ 可選：過關地點。指定後，走到 goalDistance 還要「站上該側人行道」才過關，
   //   時間照跑。終點會出現一棟目的地建築（外觀在 skins.ts 的 makeDestinationBuilding）。
   goalSide?: "left" | "right";
-  destinationLabel?: string; // 目的地建築的招牌字（之後換貼皮）
-  // ↓ 可選：關卡風味小語（如「趕著打卡」），顯示在開場橫幅；不填就不顯示
+  destination?: string; // 目的地：填 TUNING.destinations 的 key（如「公司」），招牌字、小語、貼皮一起帶過來
+  // ↓ 可選：覆寫開場橫幅的小語。不填就用目的地自己那句；填空字串就不顯示
   flavorText?: string;
   // ↓ 可選：這關用 TUNING.backdrop.sets 的第幾張背景（0 起算）；不填就依關數輪換
   backdrop?: number;
@@ -461,8 +449,7 @@ export const LEVELS: LevelConfig[] = [
     obstacleRoadChance: 0.1,
     bikeInterval: 5, // 這關開始人行道有腳踏車
     goalSide: "right",
-    destinationLabel: "公司",
-    flavorText: "趕著打卡",
+    destination: "公司",
     hideSideHint: false,
     backdrop: 0,
   },
@@ -477,8 +464,7 @@ export const LEVELS: LevelConfig[] = [
     obstacleRoadChance: 0.3,
     bikeInterval: 5,
     goalSide: "left",
-    destinationLabel: "托嬰中心",
-    flavorText: "寶寶快遲到了",
+    destination: "銀行",
     sidewalkLeft: "asphalt", // 左側人行道跟車道同色、沒有字
     sidewalkRight: "asphalt",
   },
@@ -493,8 +479,7 @@ export const LEVELS: LevelConfig[] = [
     obstacleRoadChance: 0.35,
     bikeInterval: 3.5,
     goalSide: "right",
-    destinationLabel: "醫院",
-    flavorText: "回診快來不及了",
+    destination: "醫院",
     sidewalkLeft: "none", // 左側沒有人行道，只有車道
     sidewalkRight: "normal",
   },
