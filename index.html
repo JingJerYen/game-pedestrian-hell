@@ -72,6 +72,17 @@
       #banner {
         background: rgba(0, 0, 0, 0.4);
       }
+      /* 素材還在載：橫幅改成不透明，後面的佔位色塊看不到 */
+      #banner.loading {
+        background: #1a1d22;
+      }
+      #banner-loading {
+        font-size: 18px;
+        color: #9aa4b2;
+      }
+      #banner-loading:empty {
+        display: none;
+      }
       /* 關卡的風味小語（如「趕著打卡」），沒設定就是空的不佔位 */
       #banner-flavor {
         font-size: 26px;
@@ -175,6 +186,7 @@
       <h1 id="banner-title"></h1>
       <p id="banner-flavor"></p>
       <p id="banner-sub"></p>
+      <p id="banner-loading"></p>
     </div>
     <div id="fail" class="overlay">
       <h1 id="fail-title"></h1>

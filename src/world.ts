@@ -268,6 +268,14 @@ export class World {
   }
 
   // 重組一棟街屋（外觀與尺寸由 skins.ts 決定），正面貼齊人行道外緣
+  // 街屋模型全到了就把整排色塊換成模型（只做一次）。update 每幀會叫；
+  // main.ts 在開場橫幅階段（還沒 running）也會叫，玩家開始走時就已經是模型
+  applyBuildingModels(): void {
+    if (this.buildingModelsApplied || !buildingModelsReady()) return;
+    this.buildingModelsApplied = true;
+    for (const { side, list } of this.rows) this.relayoutRow(list, side);
+  }
+
   private restyleRowBuilding(b: RowBuilding, side: -1 | 1): void {
     // 左側建築正面朝 +X（馬路在右邊）、右側朝 -X；root 原點放在人行道外緣那條線上
     b.len = restyleBuilding(b.parts, side === -1 ? 1 : -1);
@@ -346,10 +354,7 @@ export class World {
       intersectionCenters.some((c) => Math.abs(z - c) < zoneHalf + margin);
 
     for (const mesh of this.scrolling) wrap(mesh);
-    if (!this.buildingModelsApplied && buildingModelsReady()) {
-      this.buildingModelsApplied = true;
-      for (const { side, list } of this.rows) this.relayoutRow(list, side);
-    }
+    this.applyBuildingModels();
     for (const { side, list } of this.rows) {
       for (const b of list) b.parts.root.position.z += dz;
       // 整棟捲到鏡頭後面 → 接到最遠那棟後面（換一棟新的）；倒著走則反過來接到最近那棟前面

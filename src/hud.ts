@@ -11,6 +11,7 @@ export class Hud {
   private readonly level = el("level");
   private readonly progress = el("progress");
   private readonly timer = el("timer");
+  private readonly bannerLoading = el("banner-loading");
   private readonly banner = el("banner");
   private readonly bannerTitle = el("banner-title");
   private readonly bannerFlavor = el("banner-flavor");
@@ -54,6 +55,12 @@ export class Hud {
   }
 
   // flavor = 關卡風味小語（「趕著打卡」…），空字串就不顯示
+  // 開場素材還沒載完：橫幅變不透明並顯示「載入中」；載完呼叫 setLoading(false) 恢復
+  setLoading(on: boolean): void {
+    this.banner.classList.toggle("loading", on);
+    this.bannerLoading.textContent = on ? "素材載入中…" : "";
+  }
+
   showBanner(title: string, flavor: string, sub: string): void {
     this.bannerTitle.textContent = title;
     this.bannerFlavor.textContent = flavor;

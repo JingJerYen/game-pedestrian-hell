@@ -16,6 +16,9 @@ import { TouchControls } from "./touch";
 import { ROAD_LEFT, BG_RIGHT, type DeathCause } from "./tuning";
 import { Hud } from "./hud";
 import { DebugOverlay } from "./debug";
+import { buildingModelsReady, signalModelReady } from "./skins";
+import { vehicleModelsReady } from "./vehicleskins";
+import { charactersReady } from "./charskins";
 
 const FORM_LABEL = { walker: "步行", stroller: "推嬰兒車", wheelchair: "坐輪椅" } as const;
 const SIDE_LABEL = { left: "左側", right: "右側" } as const;
@@ -84,7 +87,8 @@ let hearts = TUNING.maxHearts;
 let position = 0; // 本關目前走到第幾公尺（後退會減少）
 let maxDistance = 0; // 本關最遠走到幾公尺（過關與路障生成都看它）
 let timeLeft = 0; // 本關剩餘秒數
-let bannerTimer = 0; // 開場橫幅倒數，歸零自動開始
+let bannerTimer = 0; // 開場橫幅倒數，歸零自動開始（素材載完才開始倒）
+let loadWait = 0; // 這次開場已經等素材幾秒（超過 TUNING.loadWaitMax 就不等了）
 let resultAt = 0; // 失敗/通關畫面出現的時間戳：停留滿 resultHoldSeconds 才接受按鍵
 let justCleared = false; // 剛過關（下一關的橫幅要抽一條過關字幕）
 
@@ -130,7 +134,13 @@ function startLevel(index: number): void {
     `${FORM_LABEL[lv.playerForm]}｜${goalText}｜時限 ${lv.timeLimit} 秒`,
   );
   bannerTimer = 2.0;
+  loadWait = 0;
   state = "levelStart";
+}
+
+// 開場要等的素材：街屋、車輛（含道具）、號誌桿、玩家角色。全部到了（或載失敗）才開始
+function assetsReady(form: PlayerForm): boolean {
+  return buildingModelsReady() && vehicleModelsReady() && signalModelReady() && charactersReady(form);
 }
 
 // 從池子隨機抽一條（空池回傳空字串）
@@ -242,7 +252,13 @@ renderer.setAnimationLoop(() => {
   const lv = level();
 
   if (state === "levelStart") {
-    bannerTimer -= dt;
+    loadWait += dt;
+    const ready = assetsReady(lv.playerForm) || loadWait > TUNING.loadWaitMax;
+    hud.setLoading(!ready);
+    if (ready) {
+      world.applyBuildingModels(); // 橫幅還在就先把色塊換成街屋，開始時不會閃一下
+      bannerTimer -= dt; // 素材到齊才開始倒數
+    }
     if (bannerTimer <= 0) {
       hud.hideOverlays();
       state = "running";

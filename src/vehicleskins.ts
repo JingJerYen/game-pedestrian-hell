@@ -89,15 +89,27 @@ function sizeOf(kind: string): Size3 {
   return TUNING.vehicles[kind as keyof typeof TUNING.vehicles].size;
 }
 
+// 載入進度：全部檔案（成功或失敗）都回來了才算就緒——main.ts 開場等這個，玩家才不會看到色塊
+let loadStarted = false;
+let loadTotal = 0;
+let loadDone = 0;
+export function vehicleModelsReady(): boolean {
+  return loadStarted && loadDone >= loadTotal;
+}
+
 export function preloadVehicleSkins(): void {
+  if (loadStarted) return;
+  loadStarted = true;
   const gltfLoader = new GLTFLoader();
   for (const [kind, names] of Object.entries(MODEL_VARIANTS)) {
     const size = sizeOf(kind);
     for (const name of names) {
       const url = `${import.meta.env.BASE_URL}assets/models/${modelDir(kind)}/${name}.glb`;
+      loadTotal++;
       gltfLoader.load(
         url,
         (gltf) => {
+          loadDone++;
           const rot = MODEL_ROTATION_Y[name];
           let scene: THREE.Object3D = gltf.scene;
           if (rot) {
@@ -114,7 +126,7 @@ export function preloadVehicleSkins(): void {
           else pool.push(proto);
         },
         undefined,
-        () => {}, // 檔案不在 = 這款不用，正常
+        () => loadDone++, // 檔案不在 = 這款不用，正常
       );
     }
   }

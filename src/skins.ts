@@ -175,9 +175,14 @@ const HEAD_GEO = new THREE.BoxGeometry(0.46, 1.0, 0.3);
 const HEAD_MAT = new THREE.MeshLambertMaterial({ color: 0x2c2f33 });
 const PANEL_GEO = new THREE.PlaneGeometry(0.36, 0.36);
 let poleProto: THREE.Object3D | null = null;
+let poleLoadDone = false; // 成功或失敗都算（失敗就一直用圓柱）
+export function signalModelReady(): boolean {
+  return poleLoadDone;
+}
 new GLTFLoader().load(
   `${import.meta.env.BASE_URL}assets/models/props/trafficlight.glb`,
   (gltf) => {
+    poleLoadDone = true;
     const scene = gltf.scene;
     const box = new THREE.Box3().setFromObject(scene);
     const scale = SIG.poleHeight / (box.max.y - box.min.y);
@@ -186,7 +191,10 @@ new GLTFLoader().load(
     poleProto = scene;
   },
   undefined,
-  () => console.warn("號誌桿模型載入失敗：trafficlight.glb"),
+  () => {
+    poleLoadDone = true;
+    console.warn("號誌桿模型載入失敗：trafficlight.glb");
+  },
 );
 const LED_GREEN = "#3cff66";
 
@@ -587,15 +595,20 @@ export function preloadBuildingModels(): void {
       (gltf) => {
         shareTextures(gltf.scene);
         buildingProtos.push({ scene: gltf.scene, cfg });
+        buildingLoadsDone++;
       },
       undefined,
-      () => console.warn(`建築模型載入失敗：${cfg.name}.glb`),
+      () => {
+        buildingLoadsDone++; // 失敗也算完成，開場不會卡死等它
+        console.warn(`建築模型載入失敗：${cfg.name}.glb`);
+      },
     );
   }
 }
-// world.ts 用：模型全到了嗎——載好整排重蓋一次
+let buildingLoadsDone = 0;
+// world.ts 用：模型全到了嗎——載好整排重蓋一次；main.ts 開場也等這個
 export function buildingModelsReady(): boolean {
-  return buildingProtos.length >= BUILDING_MODELS.length && buildingProtos.length > 0;
+  return buildingLoadStarted && buildingLoadsDone >= BUILDING_MODELS.length && buildingProtos.length > 0;
 }
 
 // 素色方塊（fallback）：1×1×1 單位方塊，尺寸用 scale 決定
