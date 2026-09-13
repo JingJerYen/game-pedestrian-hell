@@ -41,6 +41,39 @@
         font-size: 22px;
         margin-top: 4px;
       }
+      /* 後方來車警示：紅色「!」在畫面下方閃，依車在左後/右後偏左/偏右並帶箭頭；快追上時閃更快 */
+      #warn {
+        position: fixed;
+        left: 50%;
+        bottom: 22%;
+        transform: translateX(-50%);
+        font-size: 72px;
+        font-weight: 900;
+        color: #ff2b2b;
+        text-shadow: 0 0 12px rgba(255, 40, 40, 0.9), 0 3px 6px rgba(0, 0, 0, 0.8);
+        display: none;
+        pointer-events: none;
+        user-select: none;
+        animation: warn-blink 0.5s steps(1) infinite;
+      }
+      #warn.show {
+        display: block;
+      }
+      #warn.left {
+        transform: translateX(-160%);
+      }
+      #warn.right {
+        transform: translateX(60%);
+      }
+      #warn.urgent {
+        font-size: 96px;
+        animation-duration: 0.2s;
+      }
+      @keyframes warn-blink {
+        50% {
+          opacity: 0.25;
+        }
+      }
       #timer.low {
         color: #ff8080;
       }
@@ -202,6 +235,7 @@
     <div id="debug"></div>
     <div id="stick-base"><div id="stick-knob"></div></div>
     <button id="cam-toggle" type="button">視角 2：第三人稱</button>
+    <div id="warn"></div>
     <div id="hint">↑ 前進　↓ 後退　← → 橫移　C 切換視角</div>
     <script type="module" src="/src/main.ts"></script>
   </body>

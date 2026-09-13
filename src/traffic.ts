@@ -54,6 +54,7 @@ export class Traffic {
   private spawnTimer = 0;
   private bgSpawnTimer = 0;
   private bikeTimer = 0;
+  private scrollSpeed = 0; // 這一幀世界捲動的速度（dz/dt），算後方來車接近速度用
 
   constructor(private readonly scene: THREE.Scene) {
     preloadVehicleSkins(); // 有 3D 模型/貼圖就換皮，沒有就維持色塊
@@ -69,6 +70,7 @@ export class Traffic {
   ): void {
     const t = TUNING;
     const blockedCols = obstacles.occupiedRoadCols();
+    this.scrollSpeed = dt > 0 ? dz / dt : 0;
 
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
@@ -498,6 +500,31 @@ export class Traffic {
       }
     }
     return null;
+  }
+
+  // 後方來車警示：從背後來（同向、直行）、橫向會擦到、幾秒內會追上的車裡最急的那台；
+  // 沒有就 null。side = 車在玩家的左後（-1）／正後（0）／右後（1）
+  threatFromBehind(player: Player): { side: -1 | 0 | 1; seconds: number } | null {
+    const w = TUNING.rearWarning;
+    const px = player.mesh.position.x;
+    const pz = player.mesh.position.z;
+    let best: { side: -1 | 0 | 1; seconds: number } | null = null;
+    for (const car of this.cars) {
+      if (car.dir !== -1 || car.mode !== "straight") continue; // 只看從背後往前開的直行車
+      const gap = car.mesh.position.z - car.size.z / 2 - (pz + player.size.z / 2); // 車頭到人背後的距離
+      if (gap > w.maxDistance) continue;
+      const dx = car.mesh.position.x - px;
+      if (Math.abs(dx) > (car.size.x + player.size.x) / 2 + w.lateral) continue; // 橫向擦不到
+      // 接近速度：車自己的速度，扣掉玩家往前走把世界往後捲的量（玩家越快跑，車追得越慢）
+      const closing = car.effSpeed - this.scrollSpeed;
+      if (closing <= 0.1) continue;
+      const seconds = Math.max(0, gap) / closing;
+      if (seconds > w.seconds) continue;
+      if (!best || seconds < best.seconds) {
+        best = { side: Math.abs(dx) < 0.3 ? 0 : dx < 0 ? -1 : 1, seconds };
+      }
+    }
+    return best;
   }
 
   // debug overlay 用。bikeClips = 腳踏車此刻和汽車/路障疊在一起的數量——正常應該永遠是 0

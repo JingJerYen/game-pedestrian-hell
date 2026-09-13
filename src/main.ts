@@ -280,6 +280,26 @@ function updateCamera(dt: number): void {
   camera.lookAt(cameraX - lookAhead * sin, 0.8, -lookAhead * cos);
 }
 
+// 後方來車的喇叭聲：public/assets/sfx/horn.mp3（沒有檔案就靜音，只剩畫面上的「!」）。
+// 警示「剛出現」那一刻響一次，之後至少隔 hornCooldown 秒才再響
+const horn = new Audio(`${import.meta.env.BASE_URL}assets/sfx/horn.mp3`);
+horn.preload = "auto";
+let hornReady = false;
+horn.addEventListener("canplaythrough", () => (hornReady = true));
+let hornLast = -Infinity; // 上次響的時間（performance.now 毫秒）
+let warnWasOn = false;
+function updateRearWarning(): void {
+  const w = state === "running" ? traffic.threatFromBehind(player) : null;
+  hud.setRearWarning(w);
+  const on = w !== null;
+  if (on && !warnWasOn && hornReady && performance.now() - hornLast > TUNING.rearWarning.hornCooldown * 1000) {
+    hornLast = performance.now();
+    horn.currentTime = 0;
+    horn.play().catch(() => {}); // 瀏覽器還沒允許播音（沒互動過）就略過
+  }
+  warnWasOn = on;
+}
+
 const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
   // dt 上限 0.05 秒：切分頁回來時避免一大步跳幀（穿過車或瞬移）
@@ -389,6 +409,7 @@ renderer.setAnimationLoop(() => {
     progressText = dist + (showSideHint ? `（終點在${sideLabel}）` : "");
   }
   hud.setStatus(hearts, TUNING.maxHearts, levelIndex, progressText, timeLeft);
+  updateRearWarning();
   debug.update(dt, () => {
     const c = traffic.counts(obstacles);
     return [

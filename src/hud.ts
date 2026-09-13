@@ -12,6 +12,8 @@ export class Hud {
   private readonly progress = el("progress");
   private readonly timer = el("timer");
   private readonly bannerLoading = el("banner-loading");
+  private readonly warn = el("warn");
+  private warnKey = ""; // 上次顯示的狀態，沒變就不動 DOM
   private readonly banner = el("banner");
   private readonly bannerTitle = el("banner-title");
   private readonly bannerFlavor = el("banner-flavor");
@@ -55,6 +57,19 @@ export class Hud {
   }
 
   // flavor = 關卡風味小語（「趕著打卡」…），空字串就不顯示
+  // 後方來車警示：null = 不顯示；side 決定「!」偏左/偏右與箭頭方向；seconds < 1 更大更急
+  setRearWarning(w: { side: -1 | 0 | 1; seconds: number } | null): void {
+    const key = w ? `${w.side}:${w.seconds < 1 ? 1 : 0}` : "";
+    if (key === this.warnKey) return;
+    this.warnKey = key;
+    if (!w) {
+      this.warn.className = "";
+      return;
+    }
+    this.warn.textContent = w.side < 0 ? "◀ !" : w.side > 0 ? "! ▶" : "!";
+    this.warn.className = `show${w.side < 0 ? " left" : w.side > 0 ? " right" : ""}${w.seconds < 1 ? " urgent" : ""}`;
+  }
+
   // 開場素材還沒載完：橫幅變不透明並顯示「載入中」；載完呼叫 setLoading(false) 恢復
   setLoading(on: boolean): void {
     this.banner.classList.toggle("loading", on);
@@ -97,6 +112,7 @@ export class Hud {
 
   hideOverlays(): void {
     window.clearTimeout(this.promptTimer);
+    this.setRearWarning(null);
     for (const overlay of [this.banner, this.fail, this.win]) {
       overlay.classList.remove("show");
     }
