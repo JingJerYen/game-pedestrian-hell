@@ -14,7 +14,13 @@ export const TUNING = {
   firstPerson: {
     distance: -0.1, // 視角 1 的 cameraDistance（略往前免得看到自己）
     height: 1.5, // 視角 1 的 cameraHeight（眼睛高度）
-    turnDamp: 2.5, // 視線跟著人物轉頭的平滑度（越大越快；放開按鍵維持朝向，不回正）
+    // 視線怎麼跟人物轉頭（實驗中，改這個字串就能切換）：
+    //   "none"   = 不轉，永遠看馬路前方，←→ 是橫移（最不暈、最好控制）
+    //   "snap"   = 以 45° 為單位、幾乎瞬間轉完（VR 常用的舒適做法，不會有畫面慢慢旋轉的過程）
+    //   "smooth" = 平滑轉過去（原本的做法，慢慢轉反而容易暈）
+    turnMode: "none" as "none" | "snap" | "smooth",
+    turnDamp: 2.5, // smooth 用：越大轉越快；放開按鍵維持朝向，不回正
+    snapDamp: 14, // snap 用：跳到下一個 45° 的收斂速度（大 = 幾乎瞬間）
   },
 
   // ── 直式畫面（手機豎拿）鏡頭覆寫：畫面比例 < 1 時自動採用 ──
