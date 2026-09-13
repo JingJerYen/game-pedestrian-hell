@@ -237,6 +237,17 @@ export const TUNING = {
   // ── 命 ──
   maxHearts: 5, // 失敗扣一條，用完從第一關重來
 
+  // ── 目的地建築的貼皮 ──
+  // 招牌字（destinationLabel）→ public/assets/decals/destinations/<檔名>.jpg（規格見那個資料夾的 README）。
+  // 有圖的目的地：方塊四面貼同一張立面圖；沒列在這裡或檔案不在的，維持米色方塊＋canvas 招牌
+  destinationSkins: {
+    公司: "office",
+    全聯: "pxmart",
+    醫院: "hospital",
+    托嬰中心: "nursery",
+    學校: "school",
+  } as Record<string, string>,
+
   // ── 後方來車警示（畫面上的紅色「!」＋喇叭聲）──
   // 只提醒「會撞到」的：從背後來、橫向會擦到、幾秒內會追上的車（含人行道腳踏車）
   rearWarning: {
@@ -353,6 +364,7 @@ export const TUNING = {
     destinations: [
       // 目的地招牌字 + 配套的風味小語（隨機抽）；想加場景就加一行
       { label: "公司", flavor: "趕著打卡" },
+      { label: "全聯", flavor: "特價只到今天" },
       { label: "超商", flavor: "包裹保存最後一天" },
       { label: "郵局", flavor: "掛號快截止了" },
       { label: "醫院", flavor: "回診快來不及了" },

@@ -779,11 +779,39 @@ function makeSignTexture(label: string): THREE.Texture {
   return new THREE.CanvasTexture(canvas);
 }
 
+// 目的地貼皮：開場就把 TUNING.destinationSkins 列的 JPG 全部載進來（每張都很小），
+// 生成建築時有圖就貼、沒圖（沒列或載失敗）就用米色方塊＋canvas 招牌
+const destinationTextures = new Map<string, THREE.Texture>(); // label → 貼圖（只放載成功的）
+{
+  const loader = new THREE.TextureLoader();
+  for (const [label, file] of Object.entries(TUNING.destinationSkins)) {
+    loader.load(
+      `${import.meta.env.BASE_URL}assets/decals/destinations/${file}.jpg`,
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        destinationTextures.set(label, tex);
+      },
+      undefined,
+      () => {}, // 沒圖 = 用佔位方塊，正常
+    );
+  }
+}
+const DEST_ROOF_MAT = new THREE.MeshLambertMaterial({ color: 0x8e8e8e });
+
 export function makeDestinationBuilding(label: string): THREE.Group {
   const group = new THREE.Group();
-  const w = 9;
+  const w = 9; // 垂直馬路方向（正面朝 +Z 的那面寬 9）
   const h = 12;
-  const d = 10;
+  const d = 10; // 沿馬路方向（面向馬路那面寬 10）
+  const skin = destinationTextures.get(label);
+  if (skin) {
+    // 有立面圖：四個側面貼同一張（圖是 3:4，側面 10:12 略拉寬看不出來），屋頂灰色
+    const wallMat = new THREE.MeshLambertMaterial({ map: skin });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [wallMat, wallMat, DEST_ROOF_MAT, DEST_ROOF_MAT, wallMat, wallMat]);
+    body.position.y = h / 2;
+    group.add(body);
+    return group;
+  }
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(w, h, d),
     new THREE.MeshLambertMaterial({ color: 0xf0e3c0 }),
