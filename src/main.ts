@@ -145,7 +145,8 @@ function startLevel(index: number): void {
   intersections.reset();
   destination.reset();
   world.resetSidewalkMarks();
-  world.setBackdrop(lv.backdrop ?? index); // 背景每關輪換（關卡表可指定）
+  // 背景：手寫關卡照關卡表（沒填就依關數輪換）；無盡模式用 endless.backdrops 的第一張
+  world.setBackdrop(isEndless() ? TUNING.endless.backdrops[0] : (lv.backdrop ?? index));
   world.applySidewalks(); // 依 LAYOUT 換鋪面、挪建築
   hud.hideOverlays();
   // 目標提示依關卡設定組合：側別/距離都可以個別關掉（讓玩家自己找目的地）
@@ -491,10 +492,11 @@ renderer.setAnimationLoop(() => {
         const flavors = TUNING.endless.stageFlavors;
         const flavor = flavors.length ? flavors[(stage - 1) % flavors.length] : "";
         hud.showToast(`${stage * TUNING.endless.stageLength} m` + (flavor ? `｜${flavor}` : ""));
-        // 每 backdropEveryStages 階換一張背景（淡入淡出，天空霧色跟著慢慢變）
+        // 每 backdropEveryStages 階換一張背景（淡入淡出，天空霧色跟著慢慢變），照 endless.backdrops 的順序輪
         const every = TUNING.endless.backdropEveryStages;
-        if (every > 0 && stage % every === 0) {
-          world.setBackdrop(ENDLESS_INDEX + stage / every, TUNING.backdrop.fadeSeconds);
+        const pool = TUNING.endless.backdrops;
+        if (every > 0 && pool.length > 0 && stage % every === 0) {
+          world.setBackdrop(pool[(stage / every) % pool.length], TUNING.backdrop.fadeSeconds);
         }
       }
     }

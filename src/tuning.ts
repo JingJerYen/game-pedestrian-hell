@@ -371,7 +371,8 @@ export const TUNING = {
     turnChanceEnd: 0.7, // 路口右轉機率天花板（起點沿用 intersection.turnChance）
     bikeIntervalStart: 8, // 人行道腳踏車生成間隔（秒）
     bikeIntervalEnd: 2.0,
-    backdropEveryStages: 1, // 每幾階換一張背景圖（輪 TUNING.backdrop.sets；0 = 不換）
+    backdropEveryStages: 1, // 每幾階換一張背景圖（0 = 不換）
+    backdrops: [0, 3], // 無盡模式輪用 TUNING.backdrop.sets 的哪幾張（0 起算），照這個順序輪；進場先用第一個
     entryFlavor: "走路環保又健康，但是有點危險...", // 進入無盡模式的橫幅小語
     stageFlavors: ["車好像變多了", "路越來越難走", "台灣的路是走不完的", "還活著嗎？"], // 升階提示輪流用（留空就只顯示公尺數）
   },
