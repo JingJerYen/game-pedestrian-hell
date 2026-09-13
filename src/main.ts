@@ -107,6 +107,7 @@ function startLevel(index: number): void {
   player.setForm(lv.playerForm);
   player.reset(); // 出發點依 LAYOUT（有人行道從人行道出發）
   cameraYaw = 0; // 鏡頭回到正後方（人物 reset 後面向前方）
+  latchIx = latchIz = NaN; // 方向鎖定重算
   traffic.reset();
   obstacles.reset();
   intersections.reset();
@@ -213,6 +214,13 @@ if ("ontouchstart" in window) {
 // 直式畫面（手機豎拿）自動改用 cameraPortrait 那組參數。
 let cameraX = 0;
 let cameraYaw = 0; // 目前鏡頭繞到人物哪個方向（弧度，0 = 正後方），朝目標平滑收斂
+// 第一人稱的方向鎖定：按鍵是畫面方向，在「剛按下／換方向」那一刻依當時視線換算成世界方向，
+// 按著不放就沿用那個世界方向，不隨鏡頭轉動重新解讀。
+// 不鎖的話按住 ← 會一直原地打轉：往左走 → 人轉頭 → 鏡頭跟著轉 → ← 又變成新視線的左邊
+let latchIx = NaN; // 上次換算時的按鍵（NaN = 下一幀一定重算）
+let latchIz = NaN;
+let latchMx = 0; // 換算出來的世界方向
+let latchMz = 0;
 
 // 鏡頭模式（fixed / follow）：玩家可切換，選擇記在瀏覽器
 type CameraMode = "fixed" | "follow";
@@ -299,10 +307,17 @@ renderer.setAnimationLoop(() => {
     let mx = ix;
     let mz = -iz;
     if (cameraMode === "follow") {
-      const s = Math.sin(cameraYaw);
-      const c = Math.cos(cameraYaw);
-      mx = -iz * s + ix * c;
-      mz = -iz * c - ix * s;
+      if (ix !== latchIx || iz !== latchIz) {
+        // 按鍵變了：用「現在」的視線換算一次，之後按著不放都用這個方向
+        latchIx = ix;
+        latchIz = iz;
+        const s = Math.sin(cameraYaw);
+        const c = Math.cos(cameraYaw);
+        latchMx = -iz * s + ix * c;
+        latchMz = -iz * c - ix * s;
+      }
+      mx = latchMx;
+      mz = latchMz;
     }
     let dz = 0;
     if (mz < -1e-3) dz = (lv.walkSpeed ?? TUNING.walkSpeed) * -mz * dt;

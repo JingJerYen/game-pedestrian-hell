@@ -14,7 +14,7 @@ export const TUNING = {
   firstPerson: {
     distance: -0.1, // 視角 1 的 cameraDistance（略往前免得看到自己）
     height: 1.5, // 視角 1 的 cameraHeight（眼睛高度）
-    turnDamp: 4, // 視線跟著人物轉頭的平滑度（越大越快；放開按鍵維持朝向，不回正）
+    turnDamp: 2.5, // 視線跟著人物轉頭的平滑度（越大越快；放開按鍵維持朝向，不回正）
   },
 
   // ── 直式畫面（手機豎拿）鏡頭覆寫：畫面比例 < 1 時自動採用 ──
