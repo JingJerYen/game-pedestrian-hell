@@ -35,6 +35,12 @@ export const TUNING = {
   bgLanes: 2, // 對向車道數（可以走過去，但對向車從你背後來、會撞死你）
   centerGap: 0.5, // 雙黃線區的寬度（原本的分隔島拆掉了）
   buildingGap: 0.2, // 建築物離人行道外緣多遠（調 0 就是騎樓直接貼著人行道）
+  // 騎樓：行人可以越過人行道外緣走進騎樓凹處，柱子會擋人（碰撞框由 world.pillarBlockers 依街屋位置算）
+  arcade: {
+    walkIn: 1.2, // 可以走進去多深（公尺）；0 = 不能進騎樓。要 < depth，不然會穿進店面內牆
+    depth: 1.6, // 騎樓內縮深度（要跟 scripts/shophouse/kit.ts 的 arcadeDepth 一致）
+    pillar: 0.45, // 柱子寬（沿路方向；同上要跟 kit.ts 的 pillar 一致），每棟兩根在面寬兩端
+  },
 
   // ── 遠景大背景圖（以鏡頭為圓心的弧形大看板；圖放 public/assets/，載不到就純色天空）──
   backdrop: {
@@ -538,36 +544,38 @@ export const LEVELS: LevelConfig[] = [
     goalDistance: 180,
     timeLimit: 99,
     playerForm: "stroller",
-    spawnInterval: 2.5,
+    spawnInterval: 2.0,
     speedScale: 1.0,
     obstacleGapMin: 2,
     obstacleGapMax: 4,
     obstacleRoadChance: 0.1,
-    bikeInterval: 5,
+    bikeInterval: 100,
     intersectionEveryMin: 20,
     intersectionEveryMax: 40,
+    flavorText: "這才是沒有人行道的台灣街景",
     goalSide: "right",
     destination: "蝦皮",
     sidewalkLeft: "none", // 左側人行道跟車道同色、沒有字
-    sidewalkRight: "normal",
+    sidewalkRight: "none",
     backdrop: 2
   },
   {
     goalDistance: 200,
     timeLimit: 99,
     playerForm: "walker",
-    spawnInterval: 5.0,
+    spawnInterval: 1.0,
     speedScale: 2.0,
     obstacleGapMin: 2,
     obstacleGapMax: 4,
     obstacleRoadChance: 0.0,
-    bikeInterval: 8,
+    bikeInterval: 100,
     intersectionEveryMin: 20,
     intersectionEveryMax: 40,
+    flavorText: "歡迎來到真正的行人地獄",
     goalSide: "right",
     destination: "全聯",
-    sidewalkLeft: "normal", // 左側人行道跟車道同色、沒有字
-    sidewalkRight: "normal",
+    sidewalkLeft: "none", // 左側人行道跟車道同色、沒有字
+    sidewalkRight: "none",
     backdrop: 3
   },
 ];

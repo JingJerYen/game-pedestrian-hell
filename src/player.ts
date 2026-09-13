@@ -15,7 +15,6 @@ import {
   type DeathCause,
 } from "./tuning";
 import type { Size3 } from "./collision";
-import type { Obstacles } from "./obstacles";
 import {
   preloadCharacters,
   charactersReady,
@@ -108,7 +107,7 @@ export class Player {
     dirX: number,
     dirZ: number,
     strafeSpeed: number,
-    obstacles: Obstacles,
+    blockedAt: (pos: THREE.Vector3, size: Size3) => boolean, // 這個位置會不會撞進路障／柱子
     dz: number,
     turn = true,
   ): void {
@@ -116,13 +115,14 @@ export class Player {
     let movedX = 0;
     if (dirX !== 0) {
       const oldX = this.mesh.position.x;
+      // 橫向邊界 = 人行道外緣再往建築退 arcade.walkIn（可以走進騎樓凹處，柱子另外擋）
       this.mesh.position.x = THREE.MathUtils.clamp(
         oldX + dirX * strafeSpeed * dt,
-        walkMinX() + this.size.x / 2,
-        walkMaxX() - this.size.x / 2,
+        walkMinX() - TUNING.arcade.walkIn + this.size.x / 2,
+        walkMaxX() + TUNING.arcade.walkIn - this.size.x / 2,
       );
-      // 橫移會撞進路障就退回原位（貼著路障停下）
-      if (obstacles.blocksAt(this.mesh.position, this.size)) {
+      // 橫移會撞進路障／柱子就退回原位（貼著停下）
+      if (blockedAt(this.mesh.position, this.size)) {
         this.mesh.position.x = oldX;
       }
       movedX = this.mesh.position.x - oldX;

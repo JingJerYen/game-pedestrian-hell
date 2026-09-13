@@ -10,7 +10,7 @@ import {
   RIGHT_SIDEWALK_COL,
   type LevelConfig,
 } from "./tuning";
-import { aabbHit, type Size3 } from "./collision";
+import { blockedBy, clampScrollBy, type Blocker, type Size3 } from "./collision";
 import type { Intersections } from "./intersections";
 import { makeParkingPavement } from "./skins";
 import { makeVehicleMesh, makePropMesh } from "./vehicleskins";
@@ -307,16 +307,12 @@ export class Obstacles {
   // 前方（或後退時後方）有路障就把這一幀的捲動量夾住，讓玩家貼著路障停下
   // （用 obstacleBlockShrink：貼齊視覺，不然玩家會半個身體陷進路障）
   clampScroll(playerPos: THREE.Vector3, playerSize: Size3, dz: number): number {
-    const s = TUNING.obstacleBlockShrink;
-    for (const o of this.list) {
-      const halfX = ((playerSize.x + o.size.x) / 2) * s;
-      if (Math.abs(o.mesh.position.x - playerPos.x) >= halfX) continue;
-      const halfZ = ((playerSize.z + o.size.z) / 2) * s;
-      const zo = o.mesh.position.z - playerPos.z;
-      if (dz > 0 && zo < 0) dz = Math.min(dz, Math.max(0, -halfZ - zo));
-      if (dz < 0 && zo > 0) dz = Math.max(dz, Math.min(0, halfZ - zo));
-    }
-    return dz;
+    return clampScrollBy(this.blockers(), playerPos, playerSize, dz, TUNING.obstacleBlockShrink);
+  }
+
+  // 路障當成「擋住玩家的方塊」清單（演算法在 collision.ts，跟騎樓柱子共用）
+  private blockers(): Blocker[] {
+    return this.list.map((o) => ({ pos: o.mesh.position, size: o.size }));
   }
 
   // 車輛避讓用：x 這條線上、「行進方向」前方 range 公尺內有沒有路障。
@@ -342,9 +338,7 @@ export class Obstacles {
 
   // 玩家想橫移到的位置會不會撞進路障（同樣貼齊視覺）
   blocksAt(pos: THREE.Vector3, size: Size3): boolean {
-    return this.list.some((o) =>
-      aabbHit(pos, size, o.mesh.position, o.size, TUNING.obstacleBlockShrink),
-    );
+    return blockedBy(this.blockers(), pos, size, TUNING.obstacleBlockShrink);
   }
 
   // 目前有路障佔著的車道（車輛生成時避開，才不會出現車穿過違停車的畫面）
