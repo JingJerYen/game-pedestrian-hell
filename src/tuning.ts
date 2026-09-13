@@ -127,7 +127,7 @@ export const TUNING = {
   // ── 車流 ──
   spawnDistance: 90, // 車在玩家前方多遠生成
   despawnZ: 15, // 車跑到玩家後方多遠就回收
-  bgSpawnInterval: 1.6, // 對向（背景）車的生成間隔
+  bgSpawnInterval: 3.5, // 同向（從背後來）車的生成間隔，全域固定，不隨關卡或無盡難度變
   followDistance: 7, // 跟車：與同車道前車的間隙小於這個就減速跟著開（不超車、不穿模）
   followXRange: 1.4, // 「同車道」判定：橫向差距在這以內算同一條線上
   avoidLookAhead: 16, // 同向車前方這麼遠有違停就往內側車道繞
