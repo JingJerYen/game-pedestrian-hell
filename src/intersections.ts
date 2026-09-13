@@ -21,6 +21,7 @@ import {
   makeZebraForward,
   makeTrafficLight,
   updateSignals,
+  SIGNAL_FROM_CURB,
   makeScooterBox,
   makeStopLine,
 } from "./skins";
@@ -97,10 +98,9 @@ export class Intersections {
     if (hasSidewalk("left")) group.add(makeZebraForward(colX(0), depth));
     if (hasSidewalk("right")) group.add(makeZebraForward(colX(RIGHT_SIDEWALK_COL), depth));
 
-    // 號誌桿＋行人燈（永遠綠燈，上格倒數＝本關剩餘秒數）：立在路口「對面」兩角的路緣——
-    // 過馬路時正對著你，跟現實一樣（行人燈在你要走去的那一頭）。橫臂一半伸到馬路上、一半在人行道上
-    const fromCurb = TUNING.signal.poleFromCurb;
-    for (const x of [ROAD_LEFT - fromCurb, BG_RIGHT + fromCurb]) {
+    // 行人燈（永遠綠燈，上格倒數＝本關剩餘秒數；白色細桿）：立在路口「對面」兩角的路緣——
+    // 過馬路時正對著你，跟現實一樣（行人燈在你要走去的那一頭）。車用號誌另外設計中，先不放
+    for (const x of [ROAD_LEFT - SIGNAL_FROM_CURB, BG_RIGHT + SIGNAL_FROM_CURB]) {
       const light = makeTrafficLight();
       light.position.set(x, 0, -(depth / 2 + 0.6));
       group.add(light);

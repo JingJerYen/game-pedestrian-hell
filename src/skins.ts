@@ -166,36 +166,18 @@ export function makeRoadMark(label: string): THREE.Mesh {
 // 所有路口的燈共用同一張數字貼圖和同一格小綠人：canvas 一秒只重畫一次，小綠人只改 UV 偏移。
 // 小綠人的圖：public/assets/decals/signals/greenman.png——橫排 TUNING.signal.greenmanFrames 格、
 // 純黑底綠色人形、朝右走；檔案不在就用下面程式畫的火柴人頂著。倒數最後幾秒走得更快。
-// 桿子：使用者的 trafficlight.glb（桿＋兩組車用燈頭＋路名牌，正面朝 +Z），縮到 poleHeight、底貼地；
-// 模型還沒載好時用一根圓柱頂著。行人燈箱是程式蓋的黑盒＋兩片面板，掛在桿子正面 headHeight 高
+// 桿子：一根白色細桿（車用號誌另外設計中，先不放），行人燈箱＝程式蓋的黑盒＋兩片面板，掛在桿子正面。
+// 尺寸是定案的外觀（與使用者確認過），不進 tuning
 const SIG = TUNING.signal;
-const POLE_GEO = new THREE.CylinderGeometry(0.07, 0.07, SIG.poleHeight, 8);
-const POLE_MAT = new THREE.MeshLambertMaterial({ color: 0x55595f });
+const POLE_HEIGHT = 3.3; // 白色細桿高度（公尺）
+const POLE_RADIUS = 0.04;
+const HEAD_HEIGHT = 2.8; // 燈箱中心離地
+export const SIGNAL_FROM_CURB = 0.35; // 桿子立在人行道上、離路緣多遠（intersections.ts 擺位置用）
+const POLE_GEO = new THREE.CylinderGeometry(POLE_RADIUS, POLE_RADIUS, POLE_HEIGHT, 10);
+const POLE_MAT = new THREE.MeshLambertMaterial({ color: 0xf2f2f2 });
 const HEAD_GEO = new THREE.BoxGeometry(0.46, 1.0, 0.3);
 const HEAD_MAT = new THREE.MeshLambertMaterial({ color: 0x2c2f33 });
 const PANEL_GEO = new THREE.PlaneGeometry(0.36, 0.36);
-let poleProto: THREE.Object3D | null = null;
-let poleLoadDone = false; // 成功或失敗都算（失敗就一直用圓柱）
-export function signalModelReady(): boolean {
-  return poleLoadDone;
-}
-new GLTFLoader().load(
-  `${import.meta.env.BASE_URL}assets/models/props/trafficlight.glb`,
-  (gltf) => {
-    poleLoadDone = true;
-    const scene = gltf.scene;
-    const box = new THREE.Box3().setFromObject(scene);
-    const scale = SIG.poleHeight / (box.max.y - box.min.y);
-    scene.scale.setScalar(scale);
-    scene.position.set(-(box.min.x + box.max.x) / 2 * scale, -box.min.y * scale, -(box.min.z + box.max.z) / 2 * scale);
-    poleProto = scene;
-  },
-  undefined,
-  () => {
-    poleLoadDone = true;
-    console.warn("號誌桿模型載入失敗：trafficlight.glb");
-  },
-);
 const LED_GREEN = "#3cff66";
 
 // 上格：數字。先把兩位數用字型畫到 16×16 的小 canvas，再把亮的格子畫成圓點 → LED 點陣感
@@ -292,15 +274,12 @@ let walkClock = 0;
 
 export function makeTrafficLight(): THREE.Group {
   const group = new THREE.Group();
-  if (poleProto) group.add(poleProto.clone(true));
-  else {
-    const pole = new THREE.Mesh(POLE_GEO, POLE_MAT);
-    pole.position.y = SIG.poleHeight / 2;
-    group.add(pole);
-  }
-  // 行人燈箱：貼在桿子正面（桿半徑約 0.1）
-  const headZ = 0.1 + 0.15;
-  const y = SIG.headHeight;
+  const pole = new THREE.Mesh(POLE_GEO, POLE_MAT);
+  pole.position.y = POLE_HEIGHT / 2;
+  group.add(pole);
+  // 行人燈箱：掛在桿子正面
+  const headZ = POLE_RADIUS + 0.15;
+  const y = HEAD_HEIGHT;
   const head = new THREE.Mesh(HEAD_GEO, HEAD_MAT);
   head.position.set(0, y, headZ);
   group.add(head);

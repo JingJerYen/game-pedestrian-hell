@@ -16,7 +16,7 @@ import { TouchControls } from "./touch";
 import { ROAD_LEFT, BG_RIGHT, type DeathCause } from "./tuning";
 import { Hud } from "./hud";
 import { DebugOverlay } from "./debug";
-import { buildingModelsReady, signalModelReady } from "./skins";
+import { buildingModelsReady } from "./skins";
 import { vehicleModelsReady } from "./vehicleskins";
 import { charactersReady } from "./charskins";
 
@@ -138,9 +138,9 @@ function startLevel(index: number): void {
   state = "levelStart";
 }
 
-// 開場要等的素材：街屋、車輛（含道具）、號誌桿、玩家角色。全部到了（或載失敗）才開始
+// 開場要等的素材：街屋、車輛（含道具）、玩家角色。全部到了（或載失敗）才開始
 function assetsReady(form: PlayerForm): boolean {
-  return buildingModelsReady() && vehicleModelsReady() && signalModelReady() && charactersReady(form);
+  return buildingModelsReady() && vehicleModelsReady() && charactersReady(form);
 }
 
 // 從池子隨機抽一條（空池回傳空字串）
