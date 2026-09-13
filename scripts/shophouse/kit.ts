@@ -258,7 +258,7 @@ export function makeShophouse(spec: ShophouseSpec): Shophouse {
   root.add(wallMesh);
   for (const [slot, list] of decals) {
     const mesh = new THREE.Mesh(mergeGeometries(list), new THREE.MeshLambertMaterial({ color: 0xffffff }));
-    mesh.name = `decal_${slot}`; // 貼圖在遊戲載入時才由 applyDecals 貼上
+    mesh.name = `decal_${slot}`; // export.ts 會把這些槽的 UV 改指向圖集、合併成一個「decals」網格
     root.add(mesh);
   }
   return { root, width: w };

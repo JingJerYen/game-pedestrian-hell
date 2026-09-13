@@ -3,6 +3,7 @@
 // 核心原則：玩家不動；main.ts 每幀給一個 dz（世界捲動量），這裡的東西照著捲。
 
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import {
   TUNING,
   colX,
@@ -42,7 +43,7 @@ interface RowBuilding {
 
 export class World {
   readonly scene = new THREE.Scene();
-  private readonly scrolling: THREE.Mesh[] = []; // 會捲動循環的東西（車道虛線）
+  private readonly dashStrips: THREE.Mesh[] = []; // 車道虛線帶（每排一條，位移用 DASH_SPACING 取週期）
   // 路旁建築：兩側各一排連棟街屋，一棟接一棟沒有空隙。整棟捲到鏡頭後面就接到
   // 最遠那棟後面（順便換一棟新的）。進路口範圍／讓位給目的地建築時隱藏。
   private readonly rows: { side: -1 | 1; list: RowBuilding[] }[] = [];
@@ -128,20 +129,27 @@ export class World {
       this.scene.add(line);
     }
 
-    // 車道虛線（迎面車道之間 + 對向車道之間）
+    // 車道虛線（迎面車道之間 + 對向車道之間）：每排合成一條長帶子（一個 draw call），
+    // 前後各多一段蓋住繞回的接縫；捲動時位移超過一個週期就減回來，圖案是週期的所以看不出來
     const dashXs: number[] = [];
     for (let c = 2; c <= t.roadLanes; c++) dashXs.push(colX(c) - LW / 2);
     for (let i = 1; i < t.bgLanes; i++) dashXs.push(BG_LEFT + i * LW);
-    const dashGeo = new THREE.PlaneGeometry(0.15, 2.2);
     const dashMat = new THREE.MeshBasicMaterial({ color: 0xdddddd });
+    const dashCount = Math.ceil(ROAD_LENGTH / DASH_SPACING) + 2;
+    const dashParts: THREE.BufferGeometry[] = [];
+    for (let i = -1; i < dashCount; i++) {
+      const g = new THREE.PlaneGeometry(0.15, 2.2);
+      g.rotateX(-Math.PI / 2);
+      g.translate(0, 0.01, WRAP_Z - i * DASH_SPACING);
+      dashParts.push(g);
+    }
+    const stripGeo = mergeGeometries(dashParts);
     for (const x of dashXs) {
-      for (let i = 0; i < Math.ceil(ROAD_LENGTH / DASH_SPACING); i++) {
-        const dash = new THREE.Mesh(dashGeo, dashMat);
-        dash.rotation.x = -Math.PI / 2;
-        dash.position.set(x, 0.01, WRAP_Z - i * DASH_SPACING);
-        this.scene.add(dash);
-        this.scrolling.push(dash);
-      }
+      const strip = new THREE.Mesh(stripGeo, dashMat);
+      strip.position.x = x;
+      strip.frustumCulled = false; // 帶子橫跨整段路，一定在畫面裡
+      this.scene.add(strip);
+      this.dashStrips.push(strip);
     }
 
     // 路旁建築：從鏡頭後方（WRAP_Z）開始一棟接一棟往遠處排，排滿整段路
@@ -353,7 +361,9 @@ export class World {
     const nearZone = (z: number, margin: number) =>
       intersectionCenters.some((c) => Math.abs(z - c) < zoneHalf + margin);
 
-    for (const mesh of this.scrolling) wrap(mesh);
+    for (const strip of this.dashStrips) {
+      strip.position.z = (((strip.position.z + dz) % DASH_SPACING) + DASH_SPACING) % DASH_SPACING;
+    }
     this.applyBuildingModels();
     for (const { side, list } of this.rows) {
       for (const b of list) b.parts.root.position.z += dz;

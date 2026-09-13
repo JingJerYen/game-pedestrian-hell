@@ -1,8 +1,11 @@
 # 街屋貼圖（PNG）
 
-街屋 GLB（scripts/shophouse 產生）的店面和招牌貼這裡的 PNG。GLB 只記檔案路徑、不內嵌，
-所以同一家店的圖被多棟用也只下載一次。哪一棟用哪家店在 `scripts/shophouse/specs.ts` 的 `store` / `windows` 欄位，
-改完跑 `npm run export:buildings`。
+街屋 GLB（scripts/shophouse 產生）的店面和招牌貼這裡的 PNG。哪一棟用哪家店在 `scripts/shophouse/specs.ts` 的
+`store` / `windows` 欄位，改完跑 `npm run export:buildings`。
+
+**遊戲實際載的不是這些 PNG，而是 `atlas.webp`**：匯出時把 stores/ 和 windows/ 所有用到的圖拼成一張圖集
+（4096 寬），每棟的貼圖面 UV 指向圖集裡的位置並合併成一個網格，所以全部街屋共用一張圖、每棟只有 3 個 draw call。
+`atlas.webp` 是產生物，不要手改；改了 PNG 一定要重跑 export。牆面紋理（walls/）要無縫重複，不進圖集，GLB 直接參照。
 
 ## 資料夾與檔名（固定，程式靠檔名找）
 
