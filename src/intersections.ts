@@ -22,6 +22,8 @@ import {
   makeTrafficLight,
   updateSignals,
   SIGNAL_FROM_CURB,
+  makeVehicleSignal,
+  VSIGNAL_FROM_CURB,
   makeScooterBox,
   makeStopLine,
 } from "./skins";
@@ -105,6 +107,18 @@ export class Intersections {
       light.position.set(x, 0, -(depth / 2 + 0.6));
       group.add(light);
     }
+
+    // 車用號誌（純裝飾、綠燈恆亮）：右側路緣、路口對面一支（臂伸到同向車道上方、燈頭朝你），
+    // 左側路緣、路口這一頭一支轉 180°（給迎面車看，你看到的是背面）。路牌抽同一個路名
+    const streetName = TUNING.streetNames[Math.floor(Math.random() * TUNING.streetNames.length)];
+    const vsZ = depth / 2 + 2.0; // 比行人燈再往外一點，兩支不會疊在同一角
+    const far = makeVehicleSignal((BG_RIGHT - BG_LEFT) / 2 + VSIGNAL_FROM_CURB + 0.6, streetName);
+    far.position.set(BG_RIGHT + VSIGNAL_FROM_CURB, 0, -vsZ);
+    group.add(far);
+    const near = makeVehicleSignal((ROAD_RIGHT - ROAD_LEFT) / 2 + VSIGNAL_FROM_CURB + 0.6, streetName);
+    near.rotation.y = Math.PI;
+    near.position.set(ROAD_LEFT - VSIGNAL_FROM_CURB, 0, vsZ);
+    group.add(near);
 
     // 機車停等區＋停止線：從路口往外的順序是 斑馬線 → 停止線 → 停等區。
     // 兩者都畫在橫向小路鋪面之外的主路面上（鋪面 y=0.1 會蓋掉更低的標線）。

@@ -4,6 +4,7 @@
 
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { TUNING } from "./tuning";
 
 
@@ -303,6 +304,109 @@ export function updateSignals(timeLeft: number, dt: number): void {
   walkClock += dt * (timeLeft < SIG.hurryBelow ? SIG.hurryFps : SIG.walkFps);
   const frame = Math.floor(walkClock) % SIG.greenmanFrames;
   GREENMAN_MAT.map!.offset.x = frame / SIG.greenmanFrames;
+}
+
+// ── 車用號誌（程式畫的簡單版）──
+// 灰色圓桿立在路緣、橫臂伸到車道上方、臂端一個橫向三燈燈頭（黑殼＋帽簷，前後兩面都有燈、綠燈恆亮），桿上掛綠底白字路牌。
+// 以「桿子在右側路緣、臂往 -X 伸、燈頭朝 +Z」蓋；擺到左側時整組轉 180°。
+// 尺寸定案為常數；路名由 intersections.ts 從 TUNING.streetNames 抽。
+// 每支 4 個 draw call：桿＋臂＋燈殼（頂點色）、三顆燈（自發光）、路牌前後兩片。
+const VS = {
+  poleH: 5.5, // 桿高
+  poleR: 0.09,
+  armR: 0.06, // 橫臂半徑；臂在桿頂往下一點
+  headW: 1.05, // 燈頭寬（三燈橫排）
+  headH: 0.36,
+  headD: 0.3,
+  lampR: 0.12,
+  hang: 0.45, // 燈頭中心離橫臂多低
+  signW: 1.6, // 路牌
+  signH: 0.4,
+  signY: 4.2, // 路牌中心離地
+};
+export const VSIGNAL_FROM_CURB = 0.5; // 桿子離路緣多遠（intersections.ts 擺位置用）
+const VS_POLE_COLOR = new THREE.Color(0x8d939a);
+const VS_HEAD_COLOR = new THREE.Color(0x1d1f22);
+const VS_LAMP_COLORS = [0x5a1010, 0x5a4a10, 0x2ecc40]; // 紅、黃暗；綠恆亮（駕駛看過去左紅右綠）
+const VS_BODY_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
+const VS_LAMP_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });
+
+// 幾何塗上單一頂點色（合併後一個材質畫完）
+function tinted(geo: THREE.BufferGeometry, color: THREE.Color, m: THREE.Matrix4): THREE.BufferGeometry {
+  const g = geo.clone().applyMatrix4(m);
+  const n = g.attributes.position.count;
+  const c = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) (c[i * 3] = color.r), (c[i * 3 + 1] = color.g), (c[i * 3 + 2] = color.b);
+  g.setAttribute("color", new THREE.BufferAttribute(c, 3));
+  return g;
+}
+const at = (x: number, y: number, z: number, rz = 0) =>
+  new THREE.Matrix4().makeRotationZ(rz).setPosition(x, y, z);
+
+// 路牌貼圖：綠底白字（只有中文），每個路名畫一次快取
+const signTextures = new Map<string, THREE.Texture>();
+function streetSignTexture(name: string): THREE.Texture {
+  let tex = signTextures.get(name);
+  if (tex) return tex;
+  const cv = document.createElement("canvas");
+  cv.width = 512;
+  cv.height = 128;
+  const c = cv.getContext("2d")!;
+  c.fillStyle = "#0b6b3a";
+  c.fillRect(0, 0, 512, 128);
+  c.strokeStyle = "#ffffff";
+  c.lineWidth = 6;
+  c.strokeRect(8, 8, 496, 112);
+  c.fillStyle = "#ffffff";
+  c.font = "bold 72px 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif";
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+  const w = c.measureText(name).width;
+  if (w > 440) c.font = `bold ${Math.floor((72 * 440) / w)}px 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif`;
+  c.fillText(name, 256, 68);
+  tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  signTextures.set(name, tex);
+  return tex;
+}
+
+// armLength = 橫臂從桿子伸出去多長（伸到車道中間）；streetName = 路牌上的字
+export function makeVehicleSignal(armLength: number, streetName: string): THREE.Group {
+  const group = new THREE.Group();
+  const armY = VS.poleH - 0.2;
+  const headX = -armLength + 0.3; // 燈頭掛在臂端
+  const headY = armY - VS.hang;
+  const body = [
+    tinted(new THREE.CylinderGeometry(VS.poleR, VS.poleR, VS.poleH, 10), VS_POLE_COLOR, at(0, VS.poleH / 2, 0)),
+    tinted(new THREE.CylinderGeometry(VS.armR, VS.armR, armLength, 8), VS_POLE_COLOR, at(-armLength / 2, armY, 0, Math.PI / 2)),
+    tinted(new THREE.CylinderGeometry(0.03, 0.03, VS.hang, 6), VS_HEAD_COLOR, at(headX, armY - VS.hang / 2, 0)), // 吊燈頭的短桿
+    tinted(new THREE.BoxGeometry(VS.headW, VS.headH, VS.headD), VS_HEAD_COLOR, at(headX, headY, 0)),
+  ];
+  // 燈頭前後兩面都有燈（正面朝 +Z、背面朝 -Z），兩面都是綠燈恆亮；從哪邊看順序都是左紅右綠
+  const lamps: THREE.BufferGeometry[] = [];
+  const lampGeo = new THREE.CircleGeometry(VS.lampR, 14);
+  const lampBackGeo = lampGeo.clone().applyMatrix4(new THREE.Matrix4().makeRotationY(Math.PI));
+  const visorGeo = new THREE.BoxGeometry(VS.lampR * 2.3, 0.05, 0.16);
+  for (const face of [1, -1] as const) {
+    VS_LAMP_COLORS.forEach((hex, i) => {
+      const lx = headX + face * (i - 1) * (VS.headW / 3);
+      const lz = face * (VS.headD / 2 + 0.005);
+      lamps.push(tinted(face === 1 ? lampGeo : lampBackGeo, new THREE.Color(hex), at(lx, headY, lz)));
+      body.push(tinted(visorGeo, VS_HEAD_COLOR, at(lx, headY + VS.lampR + 0.05, face * (VS.headD / 2 + 0.06)))); // 帽簷
+    });
+  }
+  group.add(new THREE.Mesh(mergeGeometries(body), VS_BODY_MAT));
+  group.add(new THREE.Mesh(mergeGeometries(lamps), VS_LAMP_MAT));
+  // 路牌：前後各一片（背面那片轉 180°），從哪邊看字都是正的
+  const signGeo = new THREE.PlaneGeometry(VS.signW, VS.signH);
+  const signMat = new THREE.MeshLambertMaterial({ map: streetSignTexture(streetName) });
+  for (const dir of [1, -1] as const) {
+    const sign = new THREE.Mesh(signGeo, signMat);
+    sign.position.set(0, VS.signY, dir * (VS.poleR + 0.03));
+    if (dir === -1) sign.rotation.y = Math.PI;
+    group.add(sign);
+  }
+  return group;
 }
 
 // ── 機車停等區（路口斑馬線前的白框格）──
