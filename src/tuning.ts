@@ -73,7 +73,7 @@ export const TUNING = {
   },
   // ── 玩家移動 ──
   walkSpeed: 4.2, // 按住 ↑ 的前進速度（公尺/秒）
-  backSpeed: 2.6, // 按住 ↓ 的後退速度
+  backSpeed: 3.5, // 按住 ↓ 的後退速度
   strafeSpeed: 5.5, // 按住 ←→ 的橫移速度（連續滑動，不吸附車道中心）
   walkAnimBaseSpeed: 3.5, // 走路動畫的基準速度：實際移動速度÷這個＝動畫播放倍率
   turnDamp: 14, // 轉身平滑度：角色外觀轉向按鍵方向（左右/後退/斜向）有多快，越大轉越俐落
@@ -182,39 +182,65 @@ export const TUNING = {
   deathCaptions: {
     scooter: {
       title: "你被機車撞了 🛵",
-      facts: ["（示例）機車事故是台灣交通死傷的最大宗"],
+      facts: [
+        "2025 上半年 173 個行人陣亡，平均一天一個",
+        "台灣每十萬人交通死亡數是日本的 4 倍",
+        "腰部以下失去知覺與控制能力，終身坐輪椅😭",
+        "失去工作能力，家裡經濟撐得住嗎?"
+      ],
     },
     car: {
       title: "你被汽車撞了 🚗",
-      facts: ["（示例）台灣每年有上千名行人在人行道被撞"],
+      facts: [
+        "2024 年有 366 個行人被撞死，平均每天一個",
+        "你是在玩台灣馬力歐?",
+        "阿母還在等你回家...😭",
+        "老婆小孩在等你回家...😭 (等等，你沒有女友?)"
+      ],
     },
     truck: {
       title: "你被大卡車撞了 🚚",
-      facts: ["（示例）大車視野死角很大——你看得到車，不代表司機看得到你"],
+      facts: [
+        "司機根本沒看到你：大車有很多視線死角",
+        "以台灣的生育率來說，這次投胎可能當不了台灣人了😢",
+        "阿母還在等你回家...😭"
+      ],
     },
     bike: {
       title: "你被人行道上的腳踏車撞了 🚲",
-      facts: ["（示例）連人行道都不安全，這就是行人地獄"],
+      facts: [
+        "閃喔閃喔，撞到不負責啦",
+        "哩喜咧烤? 依台灣法規，腳踏車禁止騎在人行道上 !!"
+      ],
     },
     turning: {
       title: "右轉車沒有讓你 🚗💨",
-      facts: ["（示例）台灣行人死亡率是東亞最高等級"],
+      facts: [
+        "Welcome to Taiwan!",
+        "台灣路口：六成以上車禍發生地，禮讓行人只是課本上的美好願望",
+        "過馬路不要滑手機喔，很危險",
+        "這就是，台灣馬力歐真人版"
+      ],
     },
     timeout: {
       title: "時間到 ⏰",
-      facts: ["（示例）在台灣走路，永遠比你想的更花時間"],
+      facts: [
+        "2024 年台灣車禍奪走 2,950 條命，平均每天有 8 個人沒能走到終點，跟你一樣",
+        "這就是，台灣馬力歐真人版",
+        "你遲到了...不過安全才是最重要!",
+      ],
     },
   },
   // 過關字幕池：過關進下一關時，開場橫幅隨機抽一條（留空陣列就不顯示）
   clearFlavors: ["平安抵達，今天也活下來了"],
 
   // ── 命 ──
-  maxHearts: 3, // 失敗扣一條，用完從第一關重來
+  maxHearts: 5, // 失敗扣一條，用完從第一關重來
 
   // ── 後方來車警示（畫面上的紅色「!」＋喇叭聲）──
   // 只提醒「會撞到」的：從背後來、橫向會擦到、幾秒內會追上的車（含人行道腳踏車）
   rearWarning: {
-    seconds: 2.5, // 幾秒內會追上才提示（後方距離 ÷ 接近速度）
+    seconds: 2.0, // 幾秒內會追上才提示（後方距離 ÷ 接近速度）
     lateral: 1.2, // 橫向：車和人的邊緣相距在這以內才算會擦到（公尺）
     maxDistance: 45, // 只看後方這麼遠以內的車
     hornCooldown: 3, // 喇叭聲最短間隔（秒）；聲音檔放 public/assets/sfx/horn.mp3，沒有就只有「!」
@@ -287,12 +313,12 @@ export const TUNING = {
 
   // ── 路口（永遠綠燈；唯一威脅是迎面車右轉掃過斑馬線）──
   intersection: {
-    firstAt: 50, // 每關第一個路口在幾公尺處
-    everyMin: 70, // 之後每隔幾公尺一個路口（隨機取 min~max）
-    everyMax: 110,
-    roadDepth: 14, // 橫向小路的縱深（公尺）——縱向斑馬線要走多長就調這個
+    firstAt: 40, // 每關第一個路口在幾公尺處
+    everyMin: 40, // 之後每隔幾公尺一個路口（隨機取 min~max）
+    everyMax: 90,
+    roadDepth: 20, // 橫向小路的縱深（公尺）——縱向斑馬線要走多長就調這個
     spawnZ: 120, // 路口生成在前方多遠（生成點要藏在霧裡；測試時可暫調 40 就近看）
-    turnChance: 0.35, // 靠人行道車道的迎面車在路口右轉的機率（卡車不轉）
+    turnChance: 0.8, // 靠人行道車道的迎面車在路口右轉的機率（卡車不轉）
     turnSeconds: 0.9, // 轉彎轉 90 度花幾秒（越短轉越兇）
   },
 
@@ -399,11 +425,11 @@ export interface LevelConfig {
 
 export const LEVELS: LevelConfig[] = [
   {
-    goalDistance: 20,
-    timeLimit: 90,
+    goalDistance: 100,
+    timeLimit: 99,
     playerForm: "walker",
-    spawnInterval: 1.3,
-    speedScale: 1.0,
+    spawnInterval: 3.0,
+    speedScale: 0.8,
     obstacleGapMin: 2,
     obstacleGapMax: 5,
     obstacleRoadChance: 0.1,
@@ -411,7 +437,8 @@ export const LEVELS: LevelConfig[] = [
     goalSide: "right",
     destinationLabel: "公司",
     flavorText: "趕著打卡",
-    hideSideHint: true,
+    hideSideHint: false,
+    backdrop: 0,
   },
   {
     goalDistance: 30,
