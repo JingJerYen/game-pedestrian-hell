@@ -79,11 +79,12 @@ export const TUNING = {
   walkAnimBaseSpeed: 3.5, // 走路動畫的基準速度：實際移動速度÷這個＝動畫播放倍率
   turnDamp: 14, // 轉身平滑度：角色外觀轉向按鍵方向（左右/後退/斜向）有多快，越大轉越俐落
 
-  // ── 玩家型態（難度桿之一：體積越大越難閃。測試用按 1 輪替）──
+  // ── 玩家型態（難度桿之一：體積越大越難閃、速度越慢。測試用按 1 輪替）──
+  // speed = 速度倍率：前進/後退/橫移三個速度一起乘（1.0 = 上面的全域值）。關卡只要指定 playerForm，速度就跟著來
   playerForms: {
-    walker: { size: { x: 0.8, y: 1.6, z: 0.8 }, color: 0x3b7bff }, // 單人步行
-    stroller: { size: { x: 0.9, y: 1.6, z: 1.8 }, color: 0x2bb5a0 }, // 推嬰兒車（前面多一截）
-    wheelchair: { size: { x: 1.2, y: 1.45, z: 1.5 }, color: 0xe07b39 }, // 輪椅（更寬）
+    walker: { size: { x: 0.8, y: 1.6, z: 0.8 }, color: 0x3b7bff, speed: 1.0 }, // 單人步行
+    stroller: { size: { x: 0.9, y: 1.6, z: 1.8 }, color: 0x2bb5a0, speed: 0.9 }, // 推嬰兒車（前面多一截）
+    wheelchair: { size: { x: 1.2, y: 1.45, z: 1.5 }, color: 0xe07b39, speed: 0.7 }, // 輪椅（更寬）
   },
 
   // ── 車種（難度桿之二：機車快、卡車大。weight = 出現比重，不用加總成 1）──
@@ -349,34 +350,28 @@ export const TUNING = {
     turnSeconds: 0.9, // 轉彎轉 90 度花幾秒（越短轉越兇）
   },
 
-  // ── 無限模式（手動 LEVELS 全過後無縫接手；生成邏輯在 levelgen.ts）──
-  // 「一直爬」：難度在 rampLevels 關內爬到天花板，之後所有參數停在最兇值，
-  // 玩的是「你能撐到第幾關」。各 *Max/*End 是天花板，嫌不夠兇就調。
+  // ── 無盡模式（手動 LEVELS 全過後接手；難度計算在 levelgen.ts）──
+  // 一條走不完的路：沒有終點、沒有時限、一條命、固定步行者。
+  // 每走 stageLength 公尺難度升一階，各參數從 *Start 線性爬到 *End，rampStages 階之後停在最兇值。
+  // 分數 = 最遠走到幾公尺（最遠紀錄存在瀏覽器 localStorage）。
   endless: {
-    seed: 20260910, // 固定種子：每個玩家的第 N 關一模一樣（排行榜才公平）。改它＝換一整套關卡
-    rampLevels: 25, // 幾關內把難度爬到天花板
-    goalBase: 180, // 目標距離 = goalBase + 關深×goalPerLevel + 抖動，封頂 goalMax
-    goalPerLevel: 12,
-    goalJitter: 50,
-    goalMax: 380, // 距離不無限變長（太長會無聊），難度靠密度和車速堆
-    marginStart: 2.2, // 時限餘裕 = 直走所需秒數的幾倍；永遠 > 1 = 永遠走得完（公平鐵則）
-    marginEnd: 1.35,
-    spawnIntervalStart: 1.2, // 迎面車生成間隔（秒）
-    spawnIntervalMin: 0.45,
-    speedScaleMax: 1.6, // 車速倍率天花板
+    stageLength: 100, // 每幾公尺升一階
+    rampStages: 10, // 幾階爬到天花板（10 階 = 1000 m；調小每階跳得更多）
+    spawnIntervalStart: 3.5, // 迎面車生成間隔（秒）：起點比手寫第一關還鬆
+    spawnIntervalEnd: 0.45,
+    speedScaleStart: 0.7, // 車速倍率
+    speedScaleEnd: 1.6,
     obstacleGapMinStart: 12, // 路障間距（越小越密）
     obstacleGapMinEnd: 4,
     obstacleGapMaxStart: 24,
     obstacleGapMaxEnd: 9,
-    roadChanceStart: 0.2, // 違停（路邊車道路障）機率
+    roadChanceStart: 0.1, // 違停（路邊車道路障）機率
     roadChanceEnd: 0.5,
     turnChanceEnd: 0.7, // 路口右轉機率天花板（起點沿用 intersection.turnChance）
-    bikeIntervalStart: 6, // 人行道腳踏車生成間隔（秒）
+    bikeIntervalStart: 8, // 人行道腳踏車生成間隔（秒）
     bikeIntervalEnd: 2.5,
-    formWeights: { walker: 0.5, stroller: 0.3, wheelchair: 0.2 }, // 行人型態抽選權重
-    sidewalkWeights: { normal: 0.6, asphalt: 0.25, none: 0.15 }, // 人行道樣式抽選權重（左右各抽一次）
-    sideHintUntil: 4, // 無限模式第幾關之後，不再提示終點在哪側（自己找目的地大樓）
-    entryFlavor: "走路環保又健康，但是有點危險...", // 進入無限模式第一關的橫幅小語
+    entryFlavor: "走路環保又健康，但是有點危險...", // 進入無盡模式的橫幅小語
+    stageFlavors: ["車好像變多了", "路越來越難走", "台灣的路是走不完的", "還活著嗎？"], // 升階提示輪流用（留空就只顯示公尺數）
   },
 
   // ── 碰撞 ──
@@ -399,17 +394,12 @@ export type DeathCause = keyof typeof TUNING.deathCaptions;
 export interface LevelConfig {
   goalDistance: number; // 走到這個距離（公尺）就過關
   timeLimit: number; // 時限（秒），沒走到就失敗、重來本關
-  playerForm: PlayerForm; // 這一關的行人型態（walker / stroller / wheelchair）
+  playerForm: PlayerForm; // 這一關的行人型態（walker / stroller / wheelchair）；行人速度 = 全域速度 × playerForms[form].speed
   spawnInterval: number; // 迎面車生成間隔（秒），越小車越密
   speedScale: number; // 車速倍率（左右兩半都吃；想分開調用下面兩個欄位覆寫）
   obstacleGapMin: number; // 路障最小間距（公尺），越小路障越密
   obstacleGapMax: number;
   obstacleRoadChance: number; // 路障長在路邊車道（違停）而非人行道的機率
-  // ↓ 可選：行人速度覆寫。沒寫就用上面 TUNING 的全域值。
-  //   例：輪椅關想更慢就加 walkSpeed: 3.2（推薦連 strafeSpeed 一起調，比例才對）
-  walkSpeed?: number; // 前進速度（公尺/秒）
-  backSpeed?: number; // 後退速度
-  strafeSpeed?: number; // 橫移速度
   // ↓ 可選：路口覆寫。沒寫就用 TUNING.intersection 的全域值。
   intersectionEveryMin?: number; // 路口間距（公尺）
   intersectionEveryMax?: number;
@@ -450,38 +440,129 @@ export const LEVELS: LevelConfig[] = [
     bikeInterval: 5, // 這關開始人行道有腳踏車
     goalSide: "right",
     destination: "公司",
-    hideSideHint: false,
     backdrop: 0,
   },
   {
-    goalDistance: 30,
-    timeLimit: 30,
-    playerForm: "stroller",
-    spawnInterval: 1.0,
+    goalDistance: 120,
+    timeLimit: 99,
+    playerForm: "walker",
+    spawnInterval: 2.5,
     speedScale: 1.1,
-    obstacleGapMin: 10,
-    obstacleGapMax: 20,
-    obstacleRoadChance: 0.3,
-    bikeInterval: 5,
-    goalSide: "left",
+    obstacleGapMin: 2,
+    obstacleGapMax: 3,
+    obstacleRoadChance: 0.1,
+    bikeInterval: 5, // 這關開始人行道有腳踏車
+    goalSide: "right",
     destination: "銀行",
     sidewalkLeft: "asphalt", // 左側人行道跟車道同色、沒有字
     sidewalkRight: "asphalt",
+    backdrop: 1,
   },
   {
-    goalDistance: 35,
-    timeLimit: 40,
+    goalDistance: 120,
+    timeLimit: 99,
+    playerForm: "stroller",
+    spawnInterval: 2.5,
+    speedScale: 1.0,
+    obstacleGapMin: 2,
+    obstacleGapMax: 4,
+    obstacleRoadChance: 0.3,
+    bikeInterval: 5,
+    intersectionEveryMin: 20,
+    intersectionEveryMax: 40,
+    goalSide: "left",
+    destination: "全聯",
+    sidewalkLeft: "asphalt", // 左側人行道跟車道同色、沒有字
+    sidewalkRight: "none",
+    backdrop: 2
+  },
+  {
+    goalDistance: 120,
+    timeLimit: 99,
     playerForm: "wheelchair",
-    spawnInterval: 0.8,
-    speedScale: 1.2,
-    obstacleGapMin: 9,
-    obstacleGapMax: 18,
-    obstacleRoadChance: 0.35,
-    bikeInterval: 3.5,
+    spawnInterval: 2.5,
+    speedScale: 1.0,
+    obstacleGapMin: 2,
+    obstacleGapMax: 4,
+    obstacleRoadChance: 0.1,
+    bikeInterval: 5,
+    intersectionEveryMin: 20,
+    intersectionEveryMax: 40,
     goalSide: "right",
     destination: "醫院",
-    sidewalkLeft: "none", // 左側沒有人行道，只有車道
+    sidewalkLeft: "normal", // 左側人行道跟車道同色、沒有字
+    sidewalkRight: "asphalt",
+    backdrop: 3
+  },
+  {
+    goalDistance: 160,
+    timeLimit: 99,
+    playerForm: "walker",
+    spawnInterval: 1.5,
+    speedScale: 1.1,
+    obstacleGapMin: 2,
+    obstacleGapMax: 5,
+    obstacleRoadChance: 0.1,
+    bikeInterval: 5, // 這關開始人行道有腳踏車
+    sidewalkLeft: "none", // 左側人行道跟車道同色、沒有字
+    sidewalkRight: "asphalt",
+    destination: "蝦皮",
+    goalSide: "left",
+    backdrop: 0,
+  },
+  {
+    goalDistance: 180,
+    timeLimit: 99,
+    playerForm: "wheelchair",
+    spawnInterval: 2.5,
+    speedScale: 1.0,
+    obstacleGapMin: 2,
+    obstacleGapMax: 4,
+    obstacleRoadChance: 0.1,
+    bikeInterval: 5,
+    intersectionEveryMin: 20,
+    intersectionEveryMax: 40,
+    goalSide: "left",
+    destination: "公司",
+    sidewalkLeft: "normal", // 左側人行道跟車道同色、沒有字
+    sidewalkRight: "asphalt",
+    backdrop: 1
+  },
+  {
+    goalDistance: 180,
+    timeLimit: 99,
+    playerForm: "stroller",
+    spawnInterval: 2.5,
+    speedScale: 1.0,
+    obstacleGapMin: 2,
+    obstacleGapMax: 4,
+    obstacleRoadChance: 0.1,
+    bikeInterval: 5,
+    intersectionEveryMin: 20,
+    intersectionEveryMax: 40,
+    goalSide: "right",
+    destination: "蝦皮",
+    sidewalkLeft: "none", // 左側人行道跟車道同色、沒有字
     sidewalkRight: "normal",
+    backdrop: 2
+  },
+  {
+    goalDistance: 200,
+    timeLimit: 99,
+    playerForm: "walker",
+    spawnInterval: 5.0,
+    speedScale: 2.0,
+    obstacleGapMin: 2,
+    obstacleGapMax: 4,
+    obstacleRoadChance: 0.0,
+    bikeInterval: 8,
+    intersectionEveryMin: 20,
+    intersectionEveryMax: 40,
+    goalSide: "right",
+    destination: "全聯",
+    sidewalkLeft: "normal", // 左側人行道跟車道同色、沒有字
+    sidewalkRight: "normal",
+    backdrop: 3
   },
 ];
 

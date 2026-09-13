@@ -77,6 +77,30 @@
       #timer.low {
         color: #ff8080;
       }
+      /* 無盡模式升階提示：畫面中上方浮出、2 秒淡出（hud.ts showToast） */
+      #toast {
+        position: fixed;
+        left: 50%;
+        top: 18%;
+        transform: translateX(-50%);
+        color: #ffd97a;
+        font-size: 30px;
+        font-weight: 700;
+        text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        user-select: none;
+      }
+      #toast.show {
+        animation: toast-fade 2.2s ease-out forwards;
+      }
+      @keyframes toast-fade {
+        0% { opacity: 0; transform: translate(-50%, 12px); }
+        12% { opacity: 1; transform: translate(-50%, 0); }
+        70% { opacity: 1; }
+        100% { opacity: 0; }
+      }
       /* 全螢幕覆蓋畫面共用樣式（橫幅／失敗／通關） */
       .overlay {
         position: fixed;
@@ -250,6 +274,7 @@
     <div id="stick-base"><div id="stick-knob"></div></div>
     <button id="cam-toggle" type="button">視角 2：第三人稱</button>
     <div id="warn"></div>
+    <div id="toast"></div>
     <div id="hint">↑ 前進　↓ 後退　← → 橫移　或 滑鼠按住拖曳　C 切換視角</div>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -14,6 +14,7 @@ export class Hud {
   private readonly bannerLoading = el("banner-loading");
   private readonly hitVignette = el("hit-vignette");
   private readonly warn = el("warn");
+  private readonly toast = el("toast");
   private warnKey = ""; // 上次顯示的狀態，沒變就不動 DOM
   private readonly banner = el("banner");
   private readonly bannerTitle = el("banner-title");
@@ -41,20 +42,34 @@ export class Hud {
     this.camToggle.textContent = text;
   }
 
+  // hearts = null：不顯示命（無盡模式一條命）；timeLeft = Infinity：沒有時限，第四列改顯示 extraText（最遠紀錄）
   setStatus(
-    hearts: number,
+    hearts: number | null,
     maxHearts: number,
-    levelIndex: number,
+    levelText: string,
     progressText: string,
     timeLeft: number,
+    extraText = "",
   ): void {
     this.hearts.textContent =
-      "❤ ".repeat(hearts) + "🖤 ".repeat(maxHearts - hearts);
-    // 關數一直往上累計（之後接無限隨機關卡，沒有「總共幾關」這種事）
-    this.level.textContent = `第 ${levelIndex + 1} 關`;
+      hearts === null ? "" : "❤ ".repeat(hearts) + "🖤 ".repeat(maxHearts - hearts);
+    this.level.textContent = levelText;
     this.progress.textContent = progressText;
-    this.timer.textContent = `⏱ ${Math.max(timeLeft, 0).toFixed(1)}`;
-    this.timer.classList.toggle("low", timeLeft < 10);
+    if (Number.isFinite(timeLeft)) {
+      this.timer.textContent = `⏱ ${Math.max(timeLeft, 0).toFixed(1)}`;
+      this.timer.classList.toggle("low", timeLeft < 10);
+    } else {
+      this.timer.textContent = extraText;
+      this.timer.classList.remove("low");
+    }
+  }
+
+  // 畫面中上方短暫浮出一行字（無盡模式升階提示），不擋操作、自己淡出
+  showToast(text: string): void {
+    this.toast.textContent = text;
+    this.toast.classList.remove("show");
+    void this.toast.offsetWidth; // 重新觸發 CSS 動畫
+    this.toast.classList.add("show");
   }
 
   // flavor = 關卡風味小語（「趕著打卡」…），空字串就不顯示
@@ -120,7 +135,7 @@ export class Hud {
   hideOverlays(): void {
     window.clearTimeout(this.promptTimer);
     this.setRearWarning(null);
-    for (const overlay of [this.banner, this.fail, this.win]) {
+    for (const overlay of [this.banner, this.fail, this.win, this.toast]) {
       overlay.classList.remove("show");
     }
   }

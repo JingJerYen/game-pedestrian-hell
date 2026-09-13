@@ -1,95 +1,50 @@
-// 無限關卡生成器：手動配置的 LEVELS 全過之後，從這裡無縫接手。
+// 無盡模式的難度曲線：手動配置的 LEVELS 全過之後，從這裡接手。
 // 參數全部在 tuning.ts 的 TUNING.endless。
 //
-// 兩條設計鐵則：
-// 1. 固定 seed——每個玩家的第 N 關長得一模一樣，「死在第幾關」才能公平比較
-//    （之後的排行榜靠這個）。
-// 2. 時限不隨機，由 goalDistance ÷ 行人速度 × 餘裕係數推導——餘裕永遠 > 1，
-//    所以永遠不會生出物理上走不完的關卡。
+// 規則：一條走不完的路，沒有終點、沒有時限。每走 stageLength 公尺升一階，
+// 車流密度、車速、路障、右轉、腳踏車各參數從 *Start 線性爬到 *End，
+// rampStages 階之後停在最兇值。分數就是最遠走到幾公尺。
+//
+// main.ts 每幀拿「目前走到的最遠距離」來換一份 LevelConfig，各模組（traffic / obstacles /
+// intersections）照舊吃 LevelConfig，不用知道無盡模式的存在。同一階回傳同一個物件（快取）。
 
-import { TUNING, LEVELS, type LevelConfig, type PlayerForm, type SidewalkStyle } from "./tuning";
+import { TUNING, type LevelConfig } from "./tuning";
 
-// mulberry32：小而夠用的「可餵種子」隨機數產生器（Math.random 不能指定種子）。
-// 同一個種子進去，吐出來的隨機數序列永遠相同——這就是關卡可重現的原理。
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+const cache = new Map<number, LevelConfig>();
+
+// 走到 distance 公尺時是第幾階（0 起算）
+export function endlessStage(distance: number): number {
+  return Math.max(0, Math.floor(distance / TUNING.endless.stageLength));
 }
 
-const cache = new Map<number, LevelConfig>(); // 同一關生成一次就好（main 每幀都會來要）
-
-// 遊戲唯一的取關卡入口：表內回傳手動配置，表外回傳生成的
-export function getLevel(index: number): LevelConfig {
-  if (index < LEVELS.length) return LEVELS[index];
-  let lv = cache.get(index);
+// 走到 distance 公尺時的關卡參數
+export function endlessLevel(distance: number): LevelConfig {
+  const stage = endlessStage(distance);
+  let lv = cache.get(stage);
   if (!lv) {
-    lv = generate(index);
-    cache.set(index, lv);
+    lv = build(stage);
+    cache.set(stage, lv);
   }
   return lv;
 }
 
-function generate(index: number): LevelConfig {
+function build(stage: number): LevelConfig {
   const e = TUNING.endless;
-  const depth = index - LEVELS.length + 1; // 無限模式的第幾關（1 起算）
-  // 種子 = 全域種子 ⊕ 關卡編號打散——每一關有自己固定的隨機序列
-  const rng = mulberry32((e.seed ^ Math.imul(index + 1, 0x9e3779b1)) >>> 0);
-  const ramp = Math.min(depth / e.rampLevels, 1); // 難度進度 0→1，到頂就停在天花板
+  const ramp = Math.min(stage / e.rampStages, 1); // 難度進度 0→1，到頂就停在天花板
   const lerp = (from: number, to: number) => from + (to - from) * ramp;
-  const jitter = (spread: number) => 1 + (rng() * 2 - 1) * spread; // 例如 0.12 = ±12%
-
-  const goalDistance = Math.min(
-    Math.round(e.goalBase + depth * e.goalPerLevel + rng() * e.goalJitter),
-    e.goalMax,
-  );
-  // 公平鐵則：時限從距離推導（見檔頭）
-  const margin = lerp(e.marginStart, e.marginEnd) * jitter(0.05);
-  const timeLimit = Math.ceil((goalDistance / TUNING.walkSpeed) * margin);
-
-  // 行人型態：照權重抽（輪椅體積最大，出現得少一點）
-  const w = e.formWeights;
-  const roll = rng() * (w.walker + w.stroller + w.wheelchair);
-  const playerForm: PlayerForm =
-    roll < w.walker ? "walker" : roll < w.walker + w.stroller ? "stroller" : "wheelchair";
-
-  // 目的地：從 TUNING.destinations 總表隨機抽一個（小語和貼皮跟著 key 走）
-  const destKeys = Object.keys(TUNING.destinations);
-  const destination = destKeys[Math.floor(rng() * destKeys.length)];
-  // 人行道樣式：左右各照權重抽一次
-  const sw = e.sidewalkWeights;
-  const pickSidewalk = (): SidewalkStyle => {
-    const roll = rng() * (sw.normal + sw.asphalt + sw.none);
-    return roll < sw.normal ? "normal" : roll < sw.normal + sw.asphalt ? "asphalt" : "none";
-  };
-  const sidewalkLeft = pickSidewalk();
-  let sidewalkRight = pickSidewalk();
-  // 保險：至少留一側有人行道（兩側都沒有的話整條路只剩車道，也不會有腳踏車）
-  if (sidewalkLeft === "none" && sidewalkRight === "none") sidewalkRight = "normal";
-
   return {
-    goalDistance,
-    timeLimit,
-    playerForm,
-    spawnInterval: Math.max(
-      e.spawnIntervalMin,
-      lerp(e.spawnIntervalStart, e.spawnIntervalMin) * jitter(0.12),
-    ),
-    speedScale: Math.min(e.speedScaleMax, lerp(1, e.speedScaleMax) * jitter(0.05)),
+    goalDistance: Infinity, // 沒有終點（main 的抵達判定永遠不成立）
+    timeLimit: Infinity, // 沒有時限
+    playerForm: "walker", // 固定步行者：大家條件一樣，最遠距離才能比
+    spawnInterval: lerp(e.spawnIntervalStart, e.spawnIntervalEnd),
+    speedScale: lerp(e.speedScaleStart, e.speedScaleEnd),
     obstacleGapMin: lerp(e.obstacleGapMinStart, e.obstacleGapMinEnd),
     obstacleGapMax: lerp(e.obstacleGapMaxStart, e.obstacleGapMaxEnd),
     obstacleRoadChance: lerp(e.roadChanceStart, e.roadChanceEnd),
     turnChance: lerp(TUNING.intersection.turnChance, e.turnChanceEnd),
-    bikeInterval: lerp(e.bikeIntervalStart, e.bikeIntervalEnd) * jitter(0.15),
-    goalSide: rng() < 0.5 ? "left" : "right",
-    destination,
-    flavorText: depth === 1 ? e.entryFlavor : undefined, // 無限第一關用入場小語蓋掉目的地那句
-    hideSideHint: depth > e.sideHintUntil,
-    sidewalkLeft,
-    sidewalkRight,
+    bikeInterval: lerp(e.bikeIntervalStart, e.bikeIntervalEnd),
+    hideDistanceHint: true, // HUD 只顯示已走公尺數
+    sidewalkLeft: "normal",
+    sidewalkRight: "normal",
   };
 }

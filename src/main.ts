@@ -1,11 +1,13 @@
 // 進入點：組裝所有模組、跑遊戲迴圈、管理關卡狀態機。
 // 狀態流：levelStart（橫幅，自動開始）→ running →
-//   過關 → 下一關 levelStart（最後一關 → win）
+//   過關 → 下一關 levelStart（手寫關卡全過 → 無盡模式）
 //   失敗（被撞/超時）→ fail（扣一❤）→ 按鍵重來本關；❤用完 → 按鍵回第一關
+// 無盡模式（levelIndex === LEVELS.length）：沒終點沒時限、一條命，難度隨距離爬（levelgen.ts）；
+//   死了結算最遠距離，按鍵從無盡起點再來
 
 import * as THREE from "three";
 import { TUNING, LEVELS, LAYOUT, hasSidewalk, type PlayerForm } from "./tuning";
-import { getLevel } from "./levelgen";
+import { endlessLevel, endlessStage } from "./levelgen";
 import { World } from "./world";
 import { Player } from "./player";
 import { Traffic } from "./traffic";
@@ -52,14 +54,16 @@ const destination = new Destination(world.scene);
 const hud = new Hud();
 const debug = new DebugOverlay();
 
-// 測試熱鍵：1 = 換下一種玩家型態（步行 → 嬰兒車 → 輪椅 → 步行…）；2 = 換下一張背景圖。
-// 按一次換一張，輪著轉。正式版兩者都由關卡表決定。
+// 測試熱鍵：1 = 換下一種玩家型態（步行 → 嬰兒車 → 輪椅 → 步行…）；2 = 換下一張背景圖；
+// 3 = 跳下一關：手寫關卡表（LEVELS）一關關跳，最後一關之後是無盡模式，再按回第一關；命數不動，隨時可按。
+// 按一次換一張，輪著轉。正式版型態、背景都由關卡表決定。
 const FORM_CYCLE: PlayerForm[] = ["walker", "stroller", "wheelchair"];
 window.addEventListener("keydown", (e) => {
   if (e.key === "1") {
     const next = (FORM_CYCLE.indexOf(player.form) + 1) % FORM_CYCLE.length;
     player.setForm(FORM_CYCLE[next]);
   } else if (e.key === "2") world.nextBackdrop();
+  else if (e.key === "3") startLevel((levelIndex + 1) % (LEVELS.length + 1)); // LEVELS.length 就是無盡模式
 });
 
 // 按住 ↑↓←→（或 WASD）移動（用 keydown/keyup 追蹤「現在按著哪些鍵」）
@@ -80,9 +84,13 @@ window.addEventListener("keyup", (e) => {
 });
 
 // ── 關卡狀態 ──
-// （沒有「全破」狀態：手動關卡表走完就無縫接無限生成，見 levelgen.ts）
+// （沒有「全破」狀態：手動關卡表走完就接無盡模式，見 levelgen.ts）
 let state: "levelStart" | "running" | "fail" = "levelStart";
 let levelIndex = 0;
+const ENDLESS_INDEX = LEVELS.length; // 手寫關卡之後就是無盡模式（只有這一個 index）
+function isEndless(): boolean {
+  return levelIndex >= ENDLESS_INDEX;
+}
 let hearts = TUNING.maxHearts;
 let position = 0; // 本關目前走到第幾公尺（後退會減少）
 let maxDistance = 0; // 本關最遠走到幾公尺（過關與路障生成都看它）
@@ -91,16 +99,38 @@ let bannerTimer = 0; // 開場橫幅倒數，歸零自動開始（素材載完�
 let loadWait = 0; // 這次開場已經等素材幾秒（超過 TUNING.loadWaitMax 就不等了）
 let resultAt = 0; // 失敗/通關畫面出現的時間戳：停留滿 resultHoldSeconds 才接受按鍵
 let justCleared = false; // 剛過關（下一關的橫幅要抽一條過關字幕）
+let endlessStageShown = 0; // 無盡模式目前顯示到第幾階（升階時跳提示）
 
+// 無盡模式最遠紀錄（存在瀏覽器；無痕模式等讀不到就當 0）
+const BEST_KEY = "endlessBest";
+let bestDistance = 0;
+try {
+  bestDistance = Number(localStorage.getItem(BEST_KEY)) || 0;
+} catch {
+  /* 讀不到就用 0 */
+}
+function saveBest(distance: number): boolean {
+  if (distance <= bestDistance) return false;
+  bestDistance = distance;
+  try {
+    localStorage.setItem(BEST_KEY, String(Math.floor(distance)));
+  } catch {
+    /* 存不了就算了 */
+  }
+  return true;
+}
+
+// 目前這一幀的關卡參數：手寫關卡直接查表；無盡模式依「最遠走到幾公尺」換算難度
 function level() {
-  return getLevel(levelIndex);
+  return isEndless() ? endlessLevel(maxDistance) : LEVELS[levelIndex];
 }
 
 function startLevel(index: number): void {
-  levelIndex = index;
-  const lv = getLevel(index);
+  levelIndex = Math.min(index, ENDLESS_INDEX);
   position = 0;
   maxDistance = 0;
+  endlessStageShown = 0;
+  const lv = level();
   timeLeft = lv.timeLimit;
   LAYOUT.left = lv.sidewalkLeft ?? "normal";
   LAYOUT.right = lv.sidewalkRight ?? "normal";
@@ -133,11 +163,21 @@ function startLevel(index: number): void {
   // 小語：關卡有覆寫就用覆寫，否則用目的地總表那句
   const destFlavor = lv.destination ? TUNING.destinations[lv.destination]?.flavor ?? "" : "";
   const flavor = [clearLine, lv.flavorText ?? destFlavor].filter(Boolean).join("｜");
-  hud.showBanner(
-    `第 ${index + 1} 關`,
-    flavor,
-    `${FORM_LABEL[lv.playerForm]}｜${goalText}｜時限 ${lv.timeLimit} 秒`,
-  );
+  if (isEndless()) {
+    const e = TUNING.endless;
+    const best = bestDistance > 0 ? `｜最遠紀錄 ${Math.floor(bestDistance)} m` : "";
+    hud.showBanner(
+      "無盡模式",
+      [clearLine, e.entryFlavor].filter(Boolean).join("｜"),
+      `${FORM_LABEL[lv.playerForm]}｜沒有終點，看你能走多遠｜每 ${e.stageLength} m 難一點${best}`,
+    );
+  } else {
+    hud.showBanner(
+      `第 ${index + 1} 關`,
+      flavor,
+      `${FORM_LABEL[lv.playerForm]}｜${goalText}｜時限 ${lv.timeLimit} 秒`,
+    );
+  }
   bannerTimer = 2.0;
   loadWait = 0;
   state = "levelStart";
@@ -187,17 +227,23 @@ let pendingFail: (() => void) | null = null; // 慢動作結束要做的事（�
 function failLevel(cause: DeathCause): void {
   const caption = TUNING.deathCaptions[cause];
   player.die(cause); // 被撞倒下／超時搖頭
-  hearts--;
   state = "fail";
+  let sub: string;
+  let prompt: string;
+  if (isEndless()) {
+    // 無盡模式：一條命，結算最遠距離（破紀錄就說一聲）
+    const walked = Math.floor(maxDistance);
+    const record = saveBest(walked);
+    sub = `你走了 ${walked} m` + (record ? "　🏆 新紀錄！" : `　（最遠紀錄 ${Math.floor(bestDistance)} m）`);
+    prompt = "按任意鍵再走一次";
+  } else {
+    hearts--;
+    sub = hearts > 0 ? `剩 ${hearts} 條命` : "命用完了……";
+    prompt = hearts > 0 ? "按任意鍵重來本關" : "按任意鍵從第一關重新開始";
+  }
   const showFail = () => {
     resultAt = performance.now();
-    hud.showFail(
-      caption.title,
-      pickFrom(caption.facts),
-      hearts > 0 ? `剩 ${hearts} 條命` : "命用完了……",
-      hearts > 0 ? "按任意鍵重來本關" : "按任意鍵從第一關重新開始",
-      TUNING.resultHoldSeconds * 1000,
-    );
+    hud.showFail(caption.title, pickFrom(caption.facts), sub, prompt, TUNING.resultHoldSeconds * 1000);
   };
   hitMult = TUNING.hitFx.byCause[cause] ?? 1;
   if (hitMult > 0) {
@@ -217,7 +263,9 @@ function tryAdvance(): void {
   // 停留滿 resultHoldSeconds 才接受，避免玩家還在狂按方向鍵就跳過了
   if (performance.now() - resultAt < TUNING.resultHoldSeconds * 1000) return;
   if (state === "fail") {
-    if (hearts > 0) {
+    if (isEndless()) {
+      startLevel(ENDLESS_INDEX); // 無盡模式：從無盡起點再走一次
+    } else if (hearts > 0) {
       startLevel(levelIndex);
     } else {
       hearts = TUNING.maxHearts;
@@ -412,9 +460,11 @@ renderer.setAnimationLoop(() => {
       const heading = Math.atan2(-mx, -mz);
       if ((mx !== 0 || mz !== 0) && Math.abs(heading) > TUNING.firstPerson.yawLimit + 1e-6) turn = false;
     }
+    // 行人速度 = 全域速度 × 這關型態的倍率（輪椅慢、嬰兒車略慢）
+    const formSpeed = TUNING.playerForms[lv.playerForm].speed;
     let dz = 0;
-    if (mz < -1e-3) dz = (lv.walkSpeed ?? TUNING.walkSpeed) * -mz * dt;
-    else if (mz > 1e-3) dz = -(lv.backSpeed ?? TUNING.backSpeed) * mz * dt;
+    if (mz < -1e-3) dz = TUNING.walkSpeed * formSpeed * -mz * dt;
+    else if (mz > 1e-3) dz = -TUNING.backSpeed * formSpeed * mz * dt;
     dz = Math.max(dz, -position); // 不能退到起點之前
     dz = obstacles.clampScroll(player.mesh.position, player.size, dz); // 被路障擋住
 
@@ -428,11 +478,21 @@ renderer.setAnimationLoop(() => {
     ); // 生成點有車就不生（不然路障會砸在車上）
     traffic.update(dt, dz, obstacles, lv, intersections);
     // 橫移量與朝向都用世界方向（可以是小數：斜著走就是斜的）
-    player.update(dt, mx, -mz, lv.strafeSpeed ?? TUNING.strafeSpeed, obstacles, dz, turn);
+    player.update(dt, mx, -mz, TUNING.strafeSpeed * formSpeed, obstacles, dz, turn);
 
     position += dz;
     maxDistance = Math.max(maxDistance, position);
     timeLeft -= dt;
+    // 無盡模式升階：跳一行提示（難度參數由 level() 依 maxDistance 自動換）
+    if (isEndless()) {
+      const stage = endlessStage(maxDistance);
+      if (stage > endlessStageShown) {
+        endlessStageShown = stage;
+        const flavors = TUNING.endless.stageFlavors;
+        const flavor = flavors.length ? flavors[(stage - 1) % flavors.length] : "";
+        hud.showToast(`${stage * TUNING.endless.stageLength} m` + (flavor ? `｜${flavor}` : ""));
+      }
+    }
 
     // 過關判定：人要「在」目的地（目標距離 ± GOAL_ARRIVE_RANGE 之內）——
     // 走過頭不算，得走回來；關卡有指定 goalSide 的話，還要站上該側人行道
@@ -447,13 +507,13 @@ renderer.setAnimationLoop(() => {
         : px > (hasSidewalk("right") ? BG_RIGHT : BG_RIGHT - TUNING.laneWidth));
     const hitBy = traffic.hitsPlayer(player);
     if (reached && sideOk) {
-      // 過關：永遠有下一關（表用完由 levelgen 無縫接手）
+      // 過關：手寫關卡全過就進無盡模式（無盡模式 goalDistance 是 Infinity，永遠不會到這裡）
       justCleared = true;
       startLevel(levelIndex + 1);
     } else if (hitBy) {
       failLevel(hitBy); // 依兇手車種顯示對應的死亡字幕
     } else if (timeLeft <= 0) {
-      failLevel("timeout");
+      failLevel("timeout"); // 無盡模式 timeLeft 是 Infinity，不會超時
     }
   } else if (state === "fail" && hitT >= 0) {
     // 撞擊效果：定格（世界與動畫都停）→ 慢動作（車流慢慢跑、人慢慢倒）→ 出失敗畫面；
@@ -489,19 +549,33 @@ renderer.setAnimationLoop(() => {
       : `${Math.floor(position)} / ${lv.goalDistance} m`;
     progressText = dist + (showSideHint ? `（終點在${sideLabel}）` : "");
   }
-  hud.setStatus(hearts, TUNING.maxHearts, levelIndex, progressText, timeLeft);
+  if (isEndless()) {
+    // 無盡模式：不顯示命（一條命）、沒有倒數；第四列改顯示最遠紀錄
+    const stage = endlessStage(maxDistance);
+    hud.setStatus(
+      null,
+      TUNING.maxHearts,
+      `無盡模式｜難度 ${stage + 1}`,
+      `${Math.floor(position)} m`,
+      Infinity,
+      bestDistance > 0 ? `🏆 最遠 ${Math.floor(bestDistance)} m` : "",
+    );
+  } else {
+    hud.setStatus(hearts, TUNING.maxHearts, `第 ${levelIndex + 1} 關`, progressText, timeLeft);
+  }
   updateRearWarning();
   debug.update(dt, { sim: tSim, frameStart: tFrame0 }, () => {
     const c = traffic.counts(obstacles);
     return [
       `state ${state}`,
       `level ${levelIndex + 1} (${lv.playerForm})` +
-        (levelIndex >= LEVELS.length
-          ? `  [endless 第${levelIndex - LEVELS.length + 1}關]`
-          : ""),
-      `pos ${position.toFixed(1)} / max ${maxDistance.toFixed(1)} / goal ${lv.goalDistance}`,
+        (isEndless()
+          ? `  [endless 第 ${endlessStage(maxDistance) + 1} 階，每 ${TUNING.endless.stageLength} m 升一階]`
+          : `  [LEVELS 第${levelIndex + 1}/${LEVELS.length}關]`) +
+        "  (按 3 跳下一關，手寫關卡之後是無盡)",
+      `pos ${position.toFixed(1)} / max ${maxDistance.toFixed(1)} / goal ${lv.goalDistance}  best ${bestDistance}`,
       `time ${timeLeft.toFixed(1)}s`,
-      `spawnInterval ${lv.spawnInterval}s  speedScale ${lv.speedScale}`,
+      `spawnInterval ${lv.spawnInterval.toFixed(2)}s  speedScale ${lv.speedScale.toFixed(2)}  gap ${lv.obstacleGapMin.toFixed(1)}~${lv.obstacleGapMax.toFixed(1)}  road ${lv.obstacleRoadChance.toFixed(2)}  turn ${(lv.turnChance ?? TUNING.intersection.turnChance).toFixed(2)}  bike ${(lv.bikeInterval ?? 0).toFixed(1)}s`,
       `backdrop ${world.backdropInfo}  (按 2 切換)`,
       `cars ${c.total} (turning ${c.turning})  bikes ${c.bikes} (in lane ${c.bikesInLane}, stopped ${c.bikesStopped}, clipping ${c.bikeClips})  obstacles ${obstacles.count}  intersections ${intersections.count}`,
     ].join("\n");
