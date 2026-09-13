@@ -2,6 +2,6 @@
 export default {
   input: "scripts/shophouse/export.ts",
   platform: "node",
-  external: ["three", /^three\//, /^node:/],
+  external: ["three", /^three\//, /^node:/, "sharp"],
   output: { file: "scripts/dist/export-shophouses.mjs", format: "esm" },
 };
