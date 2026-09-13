@@ -512,7 +512,7 @@ export class Traffic {
     for (const car of this.cars) {
       if (car.dir !== -1 || car.mode !== "straight") continue; // 只看從背後往前開的直行車
       const gap = car.mesh.position.z - car.size.z / 2 - (pz + player.size.z / 2); // 車頭到人背後的距離
-      if (gap > w.maxDistance) continue;
+      if (gap < -0.3 || gap > w.maxDistance) continue; // 車頭已經超過人＝開到前面正在遠離，不算
       const dx = car.mesh.position.x - px;
       if (Math.abs(dx) > (car.size.x + player.size.x) / 2 + w.lateral) continue; // 橫向擦不到
       // 接近速度：車自己的速度，扣掉玩家往前走把世界往後捲的量（玩家越快跑，車追得越慢）
