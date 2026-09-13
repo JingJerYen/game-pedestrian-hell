@@ -329,6 +329,7 @@ renderer.setAnimationLoop(() => {
     const iz = held.has("up") ? 1 : held.has("down") ? -1 : 0;
     let mx = ix;
     let mz = -iz;
+    let turn = true; // 這一幀人物要不要轉向移動方向（第一人稱往後退時不轉）
     if (cameraMode === "follow") {
       if (ix !== latchIx || iz !== latchIz) {
         // 按鍵變了：用「現在」的視線換算一次，之後按著不放都用這個方向
@@ -341,13 +342,11 @@ renderer.setAnimationLoop(() => {
       }
       mx = latchMx;
       mz = latchMz;
-      // 視線限制：想走的方向會讓人轉到馬路前方 ±yawLimit 之外（斜後方、正後方）就不動作——不走也不轉，
-      // 玩家永遠不會轉到面向來時路。角度慣例同 player.turnToward：0 = 前方、±90° = 正左右、180° = 後方
+      // 視線限制：想走的方向會讓人轉到馬路前方 ±yawLimit 之外（斜後方、正後方）就「只走不轉頭」——
+      // 按 ↓ 是看著前方倒退，走過頭才退得回來；視線永遠不會轉到面向來時路。
+      // 角度慣例同 player.turnToward：0 = 前方、±90° = 正左右、180° = 後方
       const heading = Math.atan2(-mx, -mz);
-      if ((mx !== 0 || mz !== 0) && Math.abs(heading) > TUNING.firstPerson.yawLimit + 1e-6) {
-        mx = 0;
-        mz = 0;
-      }
+      if ((mx !== 0 || mz !== 0) && Math.abs(heading) > TUNING.firstPerson.yawLimit + 1e-6) turn = false;
     }
     let dz = 0;
     if (mz < -1e-3) dz = (lv.walkSpeed ?? TUNING.walkSpeed) * -mz * dt;
@@ -365,7 +364,7 @@ renderer.setAnimationLoop(() => {
     ); // 生成點有車就不生（不然路障會砸在車上）
     traffic.update(dt, dz, obstacles, lv, intersections);
     // 橫移量與朝向都用世界方向（可以是小數：斜著走就是斜的）
-    player.update(dt, mx, -mz, lv.strafeSpeed ?? TUNING.strafeSpeed, obstacles, dz);
+    player.update(dt, mx, -mz, lv.strafeSpeed ?? TUNING.strafeSpeed, obstacles, dz, turn);
 
     position += dz;
     maxDistance = Math.max(maxDistance, position);
