@@ -1,5 +1,5 @@
-// 虛擬搖桿：拇指按住畫面任意處就地生成搖桿，拖曳方向＝移動方向、拖越遠越快（無段式），
-// 放開就停。輸出是畫面座標的類比向量 axis（x 往右、y 往下，長度 0～1），main.ts 有觸控時就用它取代鍵盤。
+// 虛擬搖桿：手指（或電腦的滑鼠左鍵）按住畫面任意處就地生成搖桿，拖曳方向＝移動方向、拖越遠越快（無段式），
+// 放開就停。輸出是畫面座標的類比向量 axis（x 往右、y 往下，長度 0～1），main.ts 搖桿按著時就用它取代鍵盤。
 
 const DEAD_ZONE = 10; // 拖曳超過幾 px 才算有方向（避免手抖）
 const FULL_RANGE = 60; // 拖到幾 px 就是全速
@@ -33,7 +33,8 @@ export class TouchControls {
     );
 
     window.addEventListener("pointerdown", (e) => {
-      if (e.pointerType !== "touch" || this.pointerId !== null) return;
+      if (this.pointerId !== null) return;
+      if (e.pointerType === "mouse" && e.button !== 0) return; // 滑鼠只認左鍵
       if (onUiButton(e)) return;
       this.onTap(); // 結算畫面的「按任意鍵」，點螢幕也算
       this.pointerId = e.pointerId;

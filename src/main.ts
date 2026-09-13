@@ -204,7 +204,7 @@ function tryAdvance(): void {
 }
 window.addEventListener("keydown", tryAdvance);
 
-// 觸控裝置：虛擬搖桿寫入同一個 held 集合，並換掉操作提示文字
+// 虛擬搖桿（手指或滑鼠左鍵拖曳，無段式）；觸控裝置換掉操作提示文字
 const touch = new TouchControls(tryAdvance);
 if ("ontouchstart" in window) {
   document.getElementById("hint")!.textContent = "按住畫面拖曳移動";
