@@ -16,9 +16,9 @@ import { TouchControls } from "./touch";
 import { ROAD_LEFT, BG_RIGHT, type DeathCause } from "./tuning";
 import { Hud } from "./hud";
 import { DebugOverlay } from "./debug";
-import { buildingModelsReady } from "./skins";
-import { vehicleModelsReady } from "./vehicleskins";
-import { charactersReady } from "./charskins";
+import { buildingModelsReady, makeTrafficLight, makeVehicleSignal } from "./skins";
+import { vehicleModelsReady, allVehiclePrototypes } from "./vehicleskins";
+import { charactersReady, makeCharacterRig } from "./charskins";
 
 const FORM_LABEL = { walker: "步行", stroller: "推嬰兒車", wheelchair: "坐輪椅" } as const;
 const SIDE_LABEL = { left: "左側", right: "右側" } as const;
@@ -143,6 +143,31 @@ function assetsReady(form: PlayerForm): boolean {
   return buildingModelsReady() && vehicleModelsReady() && charactersReady(form);
 }
 
+// 開場預熱（素材到齊後、橫幅還在時做一次）：把每一款會出現的東西各放一份進場景，
+// 叫 renderer 先編譯所有 shader、把所有貼圖上傳到顯示卡，再拿掉。
+// 不做的話這些會在遊戲中「某款第一次出現」時才做，每次頓 50～200 ms
+let warmedUp = false;
+function warmUp(form: PlayerForm): void {
+  if (warmedUp) return;
+  warmedUp = true;
+  const group = new THREE.Group();
+  for (const proto of allVehiclePrototypes()) group.add(proto.clone(true));
+  group.add(makeTrafficLight());
+  group.add(makeVehicleSignal(3, TUNING.streetNames[0]));
+  const rig = makeCharacterRig(form, TUNING.playerForms[form].size);
+  if (rig) group.add(rig.root);
+  world.scene.add(group); // 街屋此時已在場景裡（applyBuildingModels），一起編譯
+  renderer.compile(world.scene, camera);
+  world.scene.traverse((obj) => {
+    const mats = (obj as THREE.Mesh).material;
+    for (const m of Array.isArray(mats) ? mats : mats ? [mats] : []) {
+      const map = (m as THREE.MeshStandardMaterial).map;
+      if (map) renderer.initTexture(map);
+    }
+  });
+  world.scene.remove(group);
+}
+
 // 從池子隨機抽一條（空池回傳空字串）
 function pickFrom(pool: readonly string[]): string {
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : "";
@@ -257,6 +282,7 @@ renderer.setAnimationLoop(() => {
     hud.setLoading(!ready);
     if (ready) {
       world.applyBuildingModels(); // 橫幅還在就先把色塊換成街屋，開始時不會閃一下
+      warmUp(lv.playerForm); // 先編譯 shader、上傳貼圖（只做一次）
       bannerTimer -= dt; // 素材到齊才開始倒數
     }
     if (bannerTimer <= 0) {

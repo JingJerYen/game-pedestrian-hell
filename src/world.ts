@@ -376,6 +376,9 @@ export class World {
         } else break;
       }
       const sideName = side === -1 ? "left" : "right";
+      // 霧的盡頭之外整棟都是霧色、看不到，不畫省 draw call（街屋排到 190 m，霧 160 m 就全白）
+      const fogFar = (this.scene.fog as THREE.Fog).far;
+      const cullZ = TUNING.cameraDistance - fogFar; // 建築近端比這更遠就不畫（霧距離從鏡頭算）
       for (const b of list) {
         const half = b.len / 2 + 0.5; // 面寬的一半 + 緩衝
         const z = b.parts.root.position.z;
@@ -383,7 +386,8 @@ export class World {
           destinationZone !== null &&
           destinationZone.side === sideName &&
           Math.abs(z - destinationZone.z) < destinationZone.margin + half;
-        b.parts.root.visible = !nearZone(z, half) && !yieldToDestination;
+        const beyondFog = z + b.len / 2 < cullZ;
+        b.parts.root.visible = !nearZone(z, half) && !yieldToDestination && !beyondFog;
       }
     }
     for (const group of this.markGroups) {

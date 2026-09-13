@@ -269,6 +269,13 @@ export function makePropMesh(name: string, color: number): THREE.Object3D {
   return makeVehicleMesh(`${PROP_PREFIX}${name}`, color);
 }
 
+// 開場預熱用（main.ts）：每一款載好的外觀各一份，讓 renderer 先編譯 shader、上傳貼圖
+export function allVehiclePrototypes(): THREE.Object3D[] {
+  const out: THREE.Object3D[] = [];
+  for (const pool of modelPools.values()) out.push(...pool);
+  return out;
+}
+
 // 對外唯一入口：生一台車的外觀（原點＝碰撞箱中心）。
 // color 只在還沒有模型的車種（純色方塊 fallback）派上用場。
 export function makeVehicleMesh(kind: string, color: number): THREE.Object3D {
