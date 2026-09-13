@@ -205,7 +205,7 @@ function tryAdvance(): void {
 window.addEventListener("keydown", tryAdvance);
 
 // 觸控裝置：虛擬搖桿寫入同一個 held 集合，並換掉操作提示文字
-new TouchControls(held, tryAdvance);
+const touch = new TouchControls(tryAdvance);
 if ("ontouchstart" in window) {
   document.getElementById("hint")!.textContent = "按住畫面拖曳移動";
 }
@@ -217,10 +217,11 @@ let cameraYaw = 0; // 目前鏡頭繞到人物哪個方向（弧度，0 = 正後
 // 第一人稱的方向鎖定：按鍵是畫面方向，在「剛按下／換方向」那一刻依當時視線換算成世界方向，
 // 按著不放就沿用那個世界方向，不隨鏡頭轉動重新解讀。
 // 不鎖的話按住 ← 會一直原地打轉：往左走 → 人轉頭 → 鏡頭跟著轉 → ← 又變成新視線的左邊
-let latchIx = NaN; // 上次換算時的按鍵（NaN = 下一幀一定重算）
+let latchIx = NaN; // 上次換算時的輸入方向（單位向量；NaN = 下一幀一定重算）
 let latchIz = NaN;
-let latchMx = 0; // 換算出來的世界方向
+let latchMx = 0; // 換算出來的世界方向（單位向量），每幀再乘目前的推桿力度
 let latchMz = 0;
+const LATCH_ANGLE = Math.PI / 8; // 搖桿方向偏離上次鎖定超過這個角度才重算（手指微動不重算，避免視線跟著晃）
 
 // 鏡頭模式（fixed / follow）：玩家可切換，選擇記在瀏覽器
 type CameraMode = "fixed" | "follow";
@@ -325,23 +326,35 @@ renderer.setAnimationLoop(() => {
     // （行人速度：關卡有覆寫就用關卡的，沒有就用全域預設）
     // 按鍵 → 世界方向：mx = 往馬路右邊的量、mz = 往馬路後方的量（-1 ~ 1）。
     // 第一人稱時按鍵是畫面座標：先依視線方向轉成世界座標（鏡頭看向哪，↑ 就往哪）
-    const ix = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
-    const iz = held.has("up") ? 1 : held.has("down") ? -1 : 0;
+    // 觸控時用搖桿的類比向量（無段式，方向與力度都連續）；鍵盤是 -1/0/1
+    let ix = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
+    let iz = held.has("up") ? 1 : held.has("down") ? -1 : 0;
+    if (touch.active) {
+      ix = touch.axis.x;
+      iz = -touch.axis.y;
+    }
     let mx = ix;
     let mz = -iz;
     let turn = true; // 這一幀人物要不要轉向移動方向（第一人稱往後退時不轉）
     if (cameraMode === "follow") {
-      if (ix !== latchIx || iz !== latchIz) {
-        // 按鍵變了：用「現在」的視線換算一次，之後按著不放都用這個方向
-        latchIx = ix;
-        latchIz = iz;
-        const s = Math.sin(cameraYaw);
-        const c = Math.cos(cameraYaw);
-        latchMx = -iz * s + ix * c;
-        latchMz = -iz * c - ix * s;
+      const mag = Math.hypot(ix, iz);
+      if (mag < 1e-3) latchIx = latchIz = NaN; // 放開：下次按下重算
+      else {
+        const ux = ix / mag;
+        const uz = iz / mag;
+        // 方向跟上次鎖定的差超過門檻（或剛按下）才重算：用「現在」的視線換算成世界方向
+        const changed = Number.isNaN(latchIx) || Math.acos(THREE.MathUtils.clamp(ux * latchIx + uz * latchIz, -1, 1)) > LATCH_ANGLE;
+        if (changed) {
+          latchIx = ux;
+          latchIz = uz;
+          const s = Math.sin(cameraYaw);
+          const c = Math.cos(cameraYaw);
+          latchMx = -uz * s + ux * c;
+          latchMz = -uz * c - ux * s;
+        }
       }
-      mx = latchMx;
-      mz = latchMz;
+      mx = Number.isNaN(latchIx) ? 0 : latchMx * mag;
+      mz = Number.isNaN(latchIx) ? 0 : latchMz * mag;
       // 視線限制：想走的方向會讓人轉到馬路前方 ±yawLimit 之外（斜後方、正後方）就「只走不轉頭」——
       // 按 ↓ 是看著前方倒退，走過頭才退得回來；視線永遠不會轉到面向來時路。
       // 角度慣例同 player.turnToward：0 = 前方、±90° = 正左右、180° = 後方
