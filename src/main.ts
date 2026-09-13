@@ -304,6 +304,7 @@ const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
   // dt 上限 0.05 秒：切分頁回來時避免一大步跳幀（穿過車或瞬移）
   const dt = Math.min(clock.getDelta(), 0.05);
+  const tFrame0 = performance.now(); // 每幀 JS 耗時量測（debug overlay 顯示）
   const lv = level();
 
   if (state === "levelStart") {
@@ -393,6 +394,8 @@ renderer.setAnimationLoop(() => {
     }
   }
 
+  const tSim = performance.now() - tFrame0; // 遊戲邏輯（車流、路障、判定…）
+
   // HUD 進度列：提示依關卡設定（hideSideHint / hideDistanceHint）組合
   const showSideHint = !!lv.goalSide && !lv.hideSideHint;
   const sideLabel = showSideHint ? SIDE_LABEL[lv.goalSide!] : "";
@@ -410,7 +413,7 @@ renderer.setAnimationLoop(() => {
   }
   hud.setStatus(hearts, TUNING.maxHearts, levelIndex, progressText, timeLeft);
   updateRearWarning();
-  debug.update(dt, () => {
+  debug.update(dt, { sim: tSim, frameStart: tFrame0 }, () => {
     const c = traffic.counts(obstacles);
     return [
       `state ${state}`,
@@ -429,7 +432,9 @@ renderer.setAnimationLoop(() => {
   player.tick(dt); // 動畫每一幀都推進（結算畫面也要，倒下動畫才播得完）
   updateCamera(dt);
   world.updateBackdrop(camera.position.x);
+  const tRender0 = performance.now();
   renderer.render(world.scene, camera);
+  debug.endFrame(tRender0); // 畫面提交（three.js 送 draw call 給瀏覽器的 CPU 時間；GPU 實際畫圖不算在內）
 });
 
 startLevel(0);
