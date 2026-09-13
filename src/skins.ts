@@ -557,6 +557,13 @@ export function makeBackdrop(): Backdrop {
     ctx.fillRect(0, 0, 4, horizonRow);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, horizonRow, 4, 512 - horizonRow);
+    // 上緣：從最上面（全遮、天空色）往下 topFadeHeight 淡出，圖的上緣就融進天空、看不到邊
+    const topRows = (c.topFadeHeight / c.height) * 512;
+    const topGrad = ctx.createLinearGradient(0, 0, 0, topRows);
+    topGrad.addColorStop(0, "rgba(255,255,255,1)");
+    topGrad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = topGrad;
+    ctx.fillRect(0, 0, 4, topRows);
     fadeTex.needsUpdate = true;
   };
   setHorizon(c.horizonRatio);
