@@ -161,7 +161,7 @@ export function makeRoadMark(label: string): THREE.Mesh {
 }
 
 // ── 行人紅綠燈（台灣式）──
-// 燈箱兩格：上格倒數數字（LED 點陣、綠色）、下格小綠人走路。永遠綠燈（本遊戲的規則）。
+// 燈箱兩格：上格倒數數字（LED 點陣、橘黃色）、下格小綠人走路。永遠綠燈（本遊戲的規則）。
 // 數字 = 本關剩餘秒數（main.ts 的 timeLeft，經 intersections.update 傳進 updateSignals），最多顯示 99。
 // 所有路口的燈共用同一張數字貼圖和同一格小綠人：canvas 一秒只重畫一次，小綠人只改 UV 偏移。
 // 小綠人的圖：public/assets/decals/signals/greenman.png——橫排 TUNING.signal.greenmanFrames 格、
@@ -178,7 +178,8 @@ const POLE_MAT = new THREE.MeshLambertMaterial({ color: 0xf2f2f2 });
 const HEAD_GEO = new THREE.BoxGeometry(0.46, 1.0, 0.3);
 const HEAD_MAT = new THREE.MeshLambertMaterial({ color: 0x2c2f33 });
 const PANEL_GEO = new THREE.PlaneGeometry(0.36, 0.36);
-const LED_GREEN = "#3cff66";
+const LED_GREEN = "#3cff66"; // 小綠人
+const LED_AMBER = "#ffb020"; // 倒數數字（台灣的行人燈數字是橘黃色）
 
 // 上格：數字。先把兩位數用字型畫到 16×16 的小 canvas，再把亮的格子畫成圓點 → LED 點陣感
 const DIGIT_GRID = 16;
@@ -202,7 +203,7 @@ function drawDigits(n: number): void {
   const c = DIGIT_CANVAS.getContext("2d")!;
   c.fillStyle = "#000";
   c.fillRect(0, 0, DIGIT_CANVAS.width, DIGIT_CANVAS.height);
-  c.fillStyle = LED_GREEN;
+  c.fillStyle = LED_AMBER;
   const cell = DIGIT_CANVAS.width / DIGIT_GRID;
   for (let y = 0; y < DIGIT_GRID; y++) {
     for (let x = 0; x < DIGIT_GRID; x++) {
