@@ -266,18 +266,13 @@ function updateCamera(dt: number): void {
     camera.updateProjectionMatrix();
   }
   cameraX = THREE.MathUtils.damp(cameraX, player.mesh.position.x, t.cameraXDamp, dt);
-  // 第一人稱：視線跟著人物「目前的朝向」（mesh.rotation.y，0 = 面向前方），依 turnMode 決定怎麼跟：
-  // none 不跟（永遠看前方）、snap 對齊到最近的 45° 再幾乎瞬間轉過去、smooth 走最短弧度平滑追上。
-  // 放開按鍵人物不轉，視線就停在那裡。第三人稱永遠看前方（yaw 收斂到 0）
-  const fp = t.firstPerson;
-  let targetYaw = 0;
-  if (firstPerson && fp.turnMode !== "none") {
-    targetYaw = player.mesh.rotation.y;
-    if (fp.turnMode === "snap") targetYaw = Math.round(targetYaw / (Math.PI / 4)) * (Math.PI / 4);
-  }
-  const damp = fp.turnMode === "snap" ? fp.snapDamp : fp.turnDamp;
+  // 第一人稱：視線跟著人物「目前的朝向」（mesh.rotation.y，0 = 面向前方），對齊到最近的 45° 後
+  // 幾乎瞬間轉過去（snap：畫面不會有慢慢旋轉的過程，比較不暈）。放開按鍵人物不轉，視線就停在那裡。
+  // 第三人稱永遠看前方（yaw 收斂到 0）
+  const SNAP = Math.PI / 4;
+  const targetYaw = firstPerson ? Math.round(player.mesh.rotation.y / SNAP) * SNAP : 0;
   const delta = Math.atan2(Math.sin(targetYaw - cameraYaw), Math.cos(targetYaw - cameraYaw));
-  cameraYaw += delta * (1 - Math.exp(-damp * dt));
+  cameraYaw += delta * (1 - Math.exp(-t.firstPerson.snapDamp * dt));
   const sin = Math.sin(cameraYaw);
   const cos = Math.cos(cameraYaw);
   // 以人物為圓心：正後方 (0, height, distance) 繞 Y 軸轉 cameraYaw；視線焦點同樣轉
