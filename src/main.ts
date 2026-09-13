@@ -270,7 +270,11 @@ function updateCamera(dt: number): void {
   // 幾乎瞬間轉過去（snap：畫面不會有慢慢旋轉的過程，比較不暈）。放開按鍵人物不轉，視線就停在那裡。
   // 第三人稱永遠看前方（yaw 收斂到 0）
   const SNAP = Math.PI / 4;
-  const targetYaw = firstPerson ? Math.round(player.mesh.rotation.y / SNAP) * SNAP : 0;
+  let targetYaw = firstPerson ? Math.round(player.mesh.rotation.y / SNAP) * SNAP : 0;
+  // 視線限制在馬路前方 ±90° 內：斜後方（135°）夾到側面 90°，正後方（180°）回看前方＝倒退走。
+  // 玩家永遠不會轉到面向來時路，不會迷失方向（實驗中）
+  const limit = t.firstPerson.yawLimit;
+  if (Math.abs(targetYaw) > limit) targetYaw = Math.abs(targetYaw) > Math.PI * 0.76 ? 0 : Math.sign(targetYaw) * limit;
   const delta = Math.atan2(Math.sin(targetYaw - cameraYaw), Math.cos(targetYaw - cameraYaw));
   cameraYaw += delta * (1 - Math.exp(-t.firstPerson.snapDamp * dt));
   const sin = Math.sin(cameraYaw);
