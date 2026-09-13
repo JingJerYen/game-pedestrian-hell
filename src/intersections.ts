@@ -44,6 +44,7 @@ const FIRST_AT = IX_TEST ? 2 : TUNING.intersection.firstAt;
 export class Intersections {
   private readonly list: THREE.Group[] = [];
   private nextAt: number = FIRST_AT;
+  private streetIndex = 0; // 下一個路口用 streetNames 的第幾條（照表的順序輪，用完從頭）
 
   constructor(private readonly scene: THREE.Scene) {}
 
@@ -110,7 +111,7 @@ export class Intersections {
 
     // 車用號誌（純裝飾、綠燈恆亮）：右側路緣、路口對面一支（臂伸到同向車道上方、燈頭朝你），
     // 左側路緣、路口這一頭一支轉 180°（給迎面車看，你看到的是背面）。路牌抽同一個路名
-    const streetName = TUNING.streetNames[Math.floor(Math.random() * TUNING.streetNames.length)];
+    const streetName = TUNING.streetNames[this.streetIndex++ % TUNING.streetNames.length]; // 依序輪流
     const vsZ = depth / 2 + 2.0; // 比行人燈再往外一點，兩支不會疊在同一角
     const far = makeVehicleSignal((BG_RIGHT - BG_LEFT) / 2 + VSIGNAL_FROM_CURB + 0.6, streetName);
     far.position.set(BG_RIGHT + VSIGNAL_FROM_CURB, 0, -vsZ);
