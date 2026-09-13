@@ -491,6 +491,11 @@ renderer.setAnimationLoop(() => {
         const flavors = TUNING.endless.stageFlavors;
         const flavor = flavors.length ? flavors[(stage - 1) % flavors.length] : "";
         hud.showToast(`${stage * TUNING.endless.stageLength} m` + (flavor ? `｜${flavor}` : ""));
+        // 每 backdropEveryStages 階換一張背景（淡入淡出，天空霧色跟著慢慢變）
+        const every = TUNING.endless.backdropEveryStages;
+        if (every > 0 && stage % every === 0) {
+          world.setBackdrop(ENDLESS_INDEX + stage / every, TUNING.backdrop.fadeSeconds);
+        }
       }
     }
 
@@ -583,7 +588,7 @@ renderer.setAnimationLoop(() => {
 
   player.tick(animDt); // 動畫每一幀都推進（結算畫面也要，倒下動畫才播得完；撞擊定格／慢動作時跟著慢）
   updateCamera(dt);
-  world.updateBackdrop(camera.position.x);
+  world.updateBackdrop(camera.position.x, dt);
   const tRender0 = performance.now();
   renderer.render(world.scene, camera);
   debug.endFrame(tRender0); // 畫面提交（three.js 送 draw call 給瀏覽器的 CPU 時間；GPU 實際畫圖不算在內）

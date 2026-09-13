@@ -57,6 +57,7 @@ export const TUNING = {
     fadeHeight: 12, // 地平線往上這段高度漸漸融進霧色（蓋掉近處樓群的底部，天際線留著）；height 縮小時這個也要跟著縮
     topFadeHeight: 130, // 圖的上緣往下這段高度漸漸融進天空色：只留天際線附近的照片，往上都是霧色（抬頭看不到照片的深藍天空）
     follow: 0.85, // 鏡頭橫移時背景跟多少：1 = 像貼在螢幕上不動、0 = 固定在世界裡（視差最大）
+    fadeSeconds: 3, // 遊戲中途換背景（無盡模式升階）的淡入秒數：圖淡入、天空與霧色同時漸變
   },
 
   // ── 路旁建築（連棟街屋：一棟接一棟沒有空隙，面寬窄、高度參差）──
@@ -356,11 +357,11 @@ export const TUNING = {
   // 分數 = 最遠走到幾公尺（最遠紀錄存在瀏覽器 localStorage）。
   endless: {
     stageLength: 100, // 每幾公尺升一階
-    rampStages: 10, // 幾階爬到天花板（10 階 = 1000 m；調小每階跳得更多）
+    rampStages: 5, // 幾階爬到天花板（5 階 = 500 m；調小每階跳得更多）
     spawnIntervalStart: 3.5, // 迎面車生成間隔（秒）：起點比手寫第一關還鬆
-    spawnIntervalEnd: 0.45,
+    spawnIntervalEnd: 0.4,
     speedScaleStart: 0.7, // 車速倍率
-    speedScaleEnd: 1.6,
+    speedScaleEnd: 1.8,
     obstacleGapMinStart: 12, // 路障間距（越小越密）
     obstacleGapMinEnd: 4,
     obstacleGapMaxStart: 24,
@@ -369,7 +370,8 @@ export const TUNING = {
     roadChanceEnd: 0.5,
     turnChanceEnd: 0.7, // 路口右轉機率天花板（起點沿用 intersection.turnChance）
     bikeIntervalStart: 8, // 人行道腳踏車生成間隔（秒）
-    bikeIntervalEnd: 2.5,
+    bikeIntervalEnd: 2.0,
+    backdropEveryStages: 1, // 每幾階換一張背景圖（輪 TUNING.backdrop.sets；0 = 不換）
     entryFlavor: "走路環保又健康，但是有點危險...", // 進入無盡模式的橫幅小語
     stageFlavors: ["車好像變多了", "路越來越難走", "台灣的路是走不完的", "還活著嗎？"], // 升階提示輪流用（留空就只顯示公尺數）
   },

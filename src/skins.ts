@@ -509,10 +509,13 @@ export function makeStopLine(width: number): THREE.Mesh {
 // 圖片本身鋪在正前方（寬度 = height × 圖片比例），弧面其餘部分用鏡射延伸。
 // 下半部疊一層「霧色 → 透明」的漸層，讓圖從地平線附近自然融進霧裡。
 // 可以換圖（每關輪換）：貼圖載一次就快取。圖載好才顯示；載不到就維持純色天空。
+// 遊戲中途換圖（無盡模式升階）可以淡入淡出：新圖疊在前面從透明淡到不透明，再接手成底圖。
 export interface Backdrop {
   group: THREE.Group; // world.ts 擺位置；x 每幀跟著鏡頭走一部分
-  // 換成這張圖、漸層改成這個霧色；horizonRatio = 這張圖的地平線在高度幾成處
-  show(image: string, sky: THREE.Color, horizonRatio: number): void;
+  // 換成這張圖；horizonRatio = 這張圖的地平線在高度幾成處；fadeSeconds > 0 = 淡入（0 = 直接切）
+  show(image: string, horizonRatio: number, fadeSeconds?: number): void;
+  // 每幀：推進淡入、漸層染成目前的霧色（world.ts 負責把霧色慢慢變過去）
+  update(dt: number, sky: THREE.Color): void;
 }
 export function makeBackdrop(): Backdrop {
   const c = TUNING.backdrop;
@@ -525,6 +528,13 @@ export function makeBackdrop(): Backdrop {
   const pictureMat = new THREE.MeshBasicMaterial({ fog: false, side: THREE.BackSide });
   const picture = new THREE.Mesh(arcGeo(c.distance), pictureMat);
   group.add(picture);
+  // 淡入用的前景圖：疊在底圖前面一點點，換圖時新圖先放這裡從透明淡到不透明，完成後搬到底圖
+  const frontMat = new THREE.MeshBasicMaterial({ fog: false, side: THREE.BackSide, transparent: true, opacity: 0, depthWrite: false });
+  const front = new THREE.Mesh(arcGeo(c.distance - 0.5), frontMat);
+  front.visible = false;
+  group.add(front);
+  let fadeT = -1; // 淡入進行了幾秒；-1 = 沒在淡
+  let fadeDur = 1;
 
   // 霧色漸層：畫成白色＋透明度，實際顏色用材質 color 染（換霧色不用重畫）
   const canvas = document.createElement("canvas");
@@ -541,10 +551,10 @@ export function makeBackdrop(): Backdrop {
   const fade = new THREE.Mesh(arcGeo(c.distance - 1), fadeMat); // 疊在圖前面一點點
   group.add(fade);
 
-  // 依這張圖的地平線位置：圖的地平線對齊 y=0，漸層從地平線往上 fadeHeight 淡出
+  // 依這張圖的地平線位置：圖的地平線對齊 y=0（圖的 y 由 horizonY 算），漸層從地平線往上 fadeHeight 淡出
+  const horizonY = (horizonRatio: number) => c.height * (0.5 - horizonRatio);
   const setHorizon = (horizonRatio: number) => {
-    const centerY = c.height * (0.5 - horizonRatio);
-    picture.position.y = centerY;
+    const centerY = horizonY(horizonRatio);
     fade.position.y = centerY;
     const ctx = canvas.getContext("2d")!;
     ctx.clearRect(0, 0, 4, 512);
@@ -567,24 +577,52 @@ export function makeBackdrop(): Backdrop {
     fadeTex.needsUpdate = true;
   };
   setHorizon(c.horizonRatio);
+  picture.position.y = horizonY(c.horizonRatio);
 
   const loader = new THREE.TextureLoader();
   const cache = new Map<string, THREE.Texture>();
   let wanted = ""; // 最後一次要求顯示的圖（載入是非同步的，載好時要確認還是它）
-  const apply = (tex: THREE.Texture) => {
+  // 直接切到這張圖（底圖）
+  const apply = (tex: THREE.Texture, horizonRatio: number) => {
     pictureMat.map = tex;
     pictureMat.needsUpdate = true;
+    picture.position.y = horizonY(horizonRatio);
     group.visible = true;
+  };
+  // 淡入完成：前景圖接手成底圖
+  const commitFront = () => {
+    if (fadeT < 0) return;
+    pictureMat.map = frontMat.map;
+    pictureMat.needsUpdate = true;
+    picture.position.y = front.position.y;
+    front.visible = false;
+    frontMat.opacity = 0;
+    fadeT = -1;
+  };
+  // 圖載好之後：要淡入就放前景開始淡，否則直接切
+  const present = (tex: THREE.Texture, horizonRatio: number, fadeSeconds: number) => {
+    if (fadeSeconds <= 0 || !group.visible) {
+      commitFront();
+      apply(tex, horizonRatio);
+      return;
+    }
+    commitFront(); // 上一張還沒淡完就先定案
+    frontMat.map = tex;
+    frontMat.needsUpdate = true;
+    frontMat.opacity = 0;
+    front.position.y = horizonY(horizonRatio);
+    front.visible = true;
+    fadeT = 0;
+    fadeDur = fadeSeconds;
   };
   return {
     group,
-    show(image, sky, horizonRatio) {
-      fadeMat.color.copy(sky);
+    show(image, horizonRatio, fadeSeconds = 0) {
       setHorizon(horizonRatio);
       wanted = image;
       const cached = cache.get(image);
       if (cached) {
-        apply(cached);
+        present(cached, horizonRatio, fadeSeconds);
         return;
       }
       loader.load(
@@ -600,11 +638,18 @@ export function makeBackdrop(): Backdrop {
           tex.repeat.x = -repeat;
           tex.offset.x = 0.5 + repeat / 2;
           cache.set(image, tex);
-          if (wanted === image) apply(tex);
+          if (wanted === image) present(tex, horizonRatio, fadeSeconds);
         },
         undefined,
         () => console.info(`沒有背景圖 ${image}，維持純色天空`),
       );
+    },
+    update(dt, sky) {
+      fadeMat.color.copy(sky);
+      if (fadeT < 0) return;
+      fadeT += dt;
+      frontMat.opacity = Math.min(1, fadeT / fadeDur);
+      if (fadeT >= fadeDur) commitFront();
     },
   };
 }

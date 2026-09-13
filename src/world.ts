@@ -50,6 +50,11 @@ export class World {
   private buildingModelsApplied = false; // 建築模型載好後把整排色塊一次換成模型
   private readonly backdrop: Backdrop; // 馬路盡頭的大背景圖
   private backdropIndex = 0; // 目前用的是 sets 的第幾張
+  // 天空／霧色的漸變（換背景時 sky 從 skyFrom 走到 skyTo，跟圖的淡入同步）
+  private readonly skyFrom = new THREE.Color();
+  private readonly skyTo = new THREE.Color();
+  private skyT = -1; // 漸變進行了幾秒；-1 = 沒在變
+  private skyDur = 1;
   private readonly markGroups: THREE.Group[] = []; // 路面標記（慢/50）：一組=一側車道各一字
   private readonly sidewalkMarks: THREE.Mesh[] = []; // 人行道上的「人行道」字
   private readonly sidewalks: THREE.Mesh[] = []; // 左右人行道鋪面
@@ -246,16 +251,26 @@ export class World {
     });
   }
 
-  // 換背景（每關開始時呼叫）：第 index 張（超出就輪回去），連天空和霧的顏色一起換
-  setBackdrop(index: number): void {
+  // 換背景：第 index 張（超出就輪回去），連天空和霧的顏色一起換。
+  // fadeSeconds > 0 = 遊戲中途換（無盡模式升階）：圖淡入、天空與霧色同時慢慢變；0 = 直接切（每關開始）
+  setBackdrop(index: number, fadeSeconds = 0): void {
     const sets = TUNING.backdrop.sets;
     if (!sets.length) return;
     this.backdropIndex = ((index % sets.length) + sets.length) % sets.length;
     const set = sets[this.backdropIndex];
     const sky = new THREE.Color(set.sky);
-    (this.scene.background as THREE.Color).copy(sky);
-    (this.scene.fog as THREE.Fog).color.copy(sky);
-    this.backdrop.show(set.image, sky, set.horizonRatio ?? TUNING.backdrop.horizonRatio);
+    const bg = this.scene.background as THREE.Color;
+    if (fadeSeconds > 0) {
+      this.skyFrom.copy(bg);
+      this.skyTo.copy(sky);
+      this.skyT = 0;
+      this.skyDur = fadeSeconds;
+    } else {
+      this.skyT = -1;
+      bg.copy(sky);
+      (this.scene.fog as THREE.Fog).color.copy(sky);
+    }
+    this.backdrop.show(set.image, set.horizonRatio ?? TUNING.backdrop.horizonRatio, fadeSeconds);
   }
 
   // 換下一張背景（測試熱鍵 2）
@@ -270,9 +285,19 @@ export class World {
     return `${this.backdropIndex + 1}/${sets.length} ${sets[this.backdropIndex].image}`;
   }
 
-  // 每幀在鏡頭定位之後呼叫：背景圖跟著鏡頭橫移一部分（follow=1 就像貼在螢幕上）
-  updateBackdrop(cameraX: number): void {
+  // 每幀在鏡頭定位之後呼叫：背景圖跟著鏡頭橫移一部分（follow=1 就像貼在螢幕上不動）；
+  // 換背景中的話推進天空／霧色漸變與圖的淡入
+  updateBackdrop(cameraX: number, dt: number): void {
     this.backdrop.group.position.x = cameraX * TUNING.backdrop.follow;
+    const bg = this.scene.background as THREE.Color;
+    if (this.skyT >= 0) {
+      this.skyT += dt;
+      const p = Math.min(1, this.skyT / this.skyDur);
+      bg.copy(this.skyFrom).lerp(this.skyTo, p);
+      (this.scene.fog as THREE.Fog).color.copy(bg);
+      if (p >= 1) this.skyT = -1;
+    }
+    this.backdrop.update(dt, bg);
   }
 
   // 重組一棟街屋（外觀與尺寸由 skins.ts 決定），正面貼齊人行道外緣
