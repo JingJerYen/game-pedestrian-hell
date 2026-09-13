@@ -12,6 +12,7 @@ export class Hud {
   private readonly progress = el("progress");
   private readonly timer = el("timer");
   private readonly bannerLoading = el("banner-loading");
+  private readonly hitVignette = el("hit-vignette");
   private readonly warn = el("warn");
   private warnKey = ""; // 上次顯示的狀態，沒變就不動 DOM
   private readonly banner = el("banner");
@@ -81,6 +82,12 @@ export class Hud {
     this.bannerFlavor.textContent = flavor;
     this.bannerSub.textContent = sub;
     this.banner.classList.add("show");
+  }
+
+  // 被撞那一刻：紅色暈影閃一下（亮起 0.12 秒，然後由 CSS 淡出）
+  flashHit(): void {
+    this.hitVignette.classList.add("show");
+    window.setTimeout(() => this.hitVignette.classList.remove("show"), 120);
   }
 
   // flavor = 死亡小知識（空字串就不顯示）；

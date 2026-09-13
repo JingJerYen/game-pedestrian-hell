@@ -108,6 +108,8 @@ function startLevel(index: number): void {
   player.reset(); // 出發點依 LAYOUT（有人行道從人行道出發）
   cameraYaw = 0; // 鏡頭回到正後方（人物 reset 後面向前方）
   latchIx = latchIz = NaN; // 方向鎖定重算
+  hitT = -1; // 撞擊效果結束
+  pendingFail = null;
   traffic.reset();
   obstacles.reset();
   intersections.reset();
@@ -174,23 +176,42 @@ function pickFrom(pool: readonly string[]): string {
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : "";
 }
 
+// ── 撞擊效果（TUNING.hitFx）：定格 → 慢動作＋鏡頭震動＋紅閃，第一人稱鏡頭倒地朝天；
+//    慢動作結束才出失敗畫面（pendingFail）。超時倍率 0 = 直接出畫面 ──
+let hitT = -1; // 撞到之後過了幾秒；-1 = 沒在播
+let hitMult = 0; // 兇手倍率（定格與震動）
+let pendingFail: (() => void) | null = null; // 慢動作結束要做的事（出失敗畫面）
+
 function failLevel(cause: DeathCause): void {
   const caption = TUNING.deathCaptions[cause];
   player.die(cause); // 被撞倒下／超時搖頭
   hearts--;
   state = "fail";
-  resultAt = performance.now();
-  hud.showFail(
-    caption.title,
-    pickFrom(caption.facts),
-    hearts > 0 ? `剩 ${hearts} 條命` : "命用完了……",
-    hearts > 0 ? "按任意鍵重來本關" : "按任意鍵從第一關重新開始",
-    TUNING.resultHoldSeconds * 1000,
-  );
+  const showFail = () => {
+    resultAt = performance.now();
+    hud.showFail(
+      caption.title,
+      pickFrom(caption.facts),
+      hearts > 0 ? `剩 ${hearts} 條命` : "命用完了……",
+      hearts > 0 ? "按任意鍵重來本關" : "按任意鍵從第一關重新開始",
+      TUNING.resultHoldSeconds * 1000,
+    );
+  };
+  hitMult = TUNING.hitFx.byCause[cause] ?? 1;
+  if (hitMult > 0) {
+    hitT = 0;
+    pendingFail = showFail;
+    hud.flashHit();
+  } else {
+    hitT = -1;
+    pendingFail = null;
+    showFail();
+  }
 }
 
 // 結算畫面的「按任意鍵」：鍵盤和觸控（點螢幕）都走這裡
 function tryAdvance(): void {
+  if (pendingFail) return; // 撞擊效果還在播、失敗畫面還沒出來
   // 停留滿 resultHoldSeconds 才接受，避免玩家還在狂按方向鍵就跳過了
   if (performance.now() - resultAt < TUNING.resultHoldSeconds * 1000) return;
   if (state === "fail") {
@@ -278,7 +299,34 @@ function updateCamera(dt: number): void {
   const cos = Math.cos(cameraYaw);
   // 以人物為圓心：正後方 (0, height, distance) 繞 Y 軸轉 cameraYaw；視線焦點同樣轉
   camera.position.set(cameraX + distance * sin, height, distance * cos);
-  camera.lookAt(cameraX - lookAhead * sin, 0.8, -lookAhead * cos);
+  const lookX = cameraX - lookAhead * sin;
+  const lookZ = -lookAhead * cos;
+  if (hitT < 0) {
+    camera.lookAt(lookX, 0.8, lookZ);
+    return;
+  }
+  // 撞擊效果：定格結束後鏡頭倒下（第一人稱倒到地上抬頭看天、第三人稱往下壓拉近側歪）＋震動
+  const fx = TUNING.hitFx;
+  const since = hitT - fx.freezeSeconds * hitMult; // 定格結束後過了幾秒
+  const p = THREE.MathUtils.smoothstep(since, 0, fx.fall.seconds); // 倒下進度 0 → 1
+  if (firstPerson) {
+    camera.position.y = THREE.MathUtils.lerp(height, fx.fall.height, p);
+    camera.lookAt(lookX, 0.8, lookZ);
+    camera.rotateX(fx.fall.pitch * p); // 抬頭看天
+    camera.rotateZ(fx.fall.roll * p); // 側歪
+  } else {
+    const px = player.mesh.position.x;
+    camera.position.x += (px - camera.position.x) * (1 - fx.third.closer) * p; // 拉近人物
+    camera.position.z *= 1 - (1 - fx.third.closer) * p;
+    camera.position.y -= fx.third.drop * p; // 往下壓
+    camera.lookAt(px, 0.6, 0);
+    camera.rotateZ(fx.third.roll * p);
+  }
+  if (since >= 0 && since < fx.shakeSeconds) {
+    const amp = fx.shakeAmp * hitMult * (1 - since / fx.shakeSeconds); // 由大到小
+    camera.position.x += (Math.random() - 0.5) * 2 * amp;
+    camera.position.y += (Math.random() - 0.5) * 2 * amp;
+  }
 }
 
 // 後方來車的喇叭聲：public/assets/sfx/horn.mp3（沒有檔案就靜音，只剩畫面上的「!」）。
@@ -307,6 +355,7 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
   const tFrame0 = performance.now(); // 每幀 JS 耗時量測（debug overlay 顯示）
   const lv = level();
+  let animDt = dt; // 人物動畫用的 dt（撞擊定格／慢動作時會變小）
 
   if (state === "levelStart") {
     loadWait += dt;
@@ -404,6 +453,21 @@ renderer.setAnimationLoop(() => {
     } else if (timeLeft <= 0) {
       failLevel("timeout");
     }
+  } else if (state === "fail" && hitT >= 0) {
+    // 撞擊效果：定格（世界與動畫都停）→ 慢動作（車流慢慢跑、人慢慢倒）→ 出失敗畫面；
+    // 之後車流繼續用慢動作跑（撞你的車會自己開走，第一人稱躺在地上才不會卡在車子裡面）
+    const fx = TUNING.hitFx;
+    hitT += dt;
+    const freeze = fx.freezeSeconds * hitMult;
+    if (hitT < freeze) animDt = 0;
+    else {
+      traffic.update(dt * fx.slowScale, 0, obstacles, lv, intersections);
+      if (hitT < freeze + fx.slowSeconds) animDt = dt * fx.slowScale;
+      else if (pendingFail) {
+        pendingFail();
+        pendingFail = null;
+      }
+    }
   }
 
   const tSim = performance.now() - tFrame0; // 遊戲邏輯（車流、路障、判定…）
@@ -441,7 +505,7 @@ renderer.setAnimationLoop(() => {
     ].join("\n");
   });
 
-  player.tick(dt); // 動畫每一幀都推進（結算畫面也要，倒下動畫才播得完）
+  player.tick(animDt); // 動畫每一幀都推進（結算畫面也要，倒下動畫才播得完；撞擊定格／慢動作時跟著慢）
   updateCamera(dt);
   world.updateBackdrop(camera.position.x);
   const tRender0 = performance.now();

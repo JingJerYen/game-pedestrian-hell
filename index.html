@@ -128,6 +128,19 @@
       #fail {
         background: rgba(120, 0, 0, 0.45);
       }
+      /* 被撞那一刻的紅色暈影：瞬間亮起（.show）、拿掉後半秒淡出（hud.ts flashHit） */
+      #hit-vignette {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(ellipse at center, rgba(255, 0, 0, 0) 35%, rgba(200, 0, 0, 0.85) 100%);
+        opacity: 0;
+        transition: opacity 0.5s ease-out;
+      }
+      #hit-vignette.show {
+        opacity: 1;
+        transition: opacity 0.04s;
+      }
       /* 死亡小知識（從 tuning.ts 的 deathCaptions 池隨機抽），空的不佔位 */
       #fail-flavor {
         font-size: 19px;
@@ -221,6 +234,7 @@
       <p id="banner-sub"></p>
       <p id="banner-loading"></p>
     </div>
+    <div id="hit-vignette"></div>
     <div id="fail" class="overlay">
       <h1 id="fail-title"></h1>
       <p id="fail-flavor"></p>

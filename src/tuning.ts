@@ -275,6 +275,19 @@ export const TUNING = {
   // 網路太慢等超過這麼多秒就直接開始
   loadWaitMax: 30,
 
+  // ── 撞擊效果（被撞那一刻起的一兩秒：定格 → 慢動作＋鏡頭震動＋紅閃；第一人稱鏡頭倒地朝天）──
+  // 慢動作結束才出失敗畫面。超時（timeout）倍率 0 = 沒有這些，直接出畫面
+  hitFx: {
+    freezeSeconds: 0.08, // 定格：畫面凍住幾秒（乘兇手倍率）
+    shakeSeconds: 0.45, // 鏡頭震動持續幾秒（定格結束後開始）
+    shakeAmp: 0.22, // 震動幅度（公尺，乘兇手倍率），由大到小衰減
+    slowSeconds: 1.5, // 慢動作持續幾秒
+    slowScale: 0.3, // 慢動作時世界（車流、倒下動畫）跑幾倍速
+    fall: { seconds: 1.0, height: 0.35, pitch: 0.8, roll: 0.35 }, // 第一人稱：幾秒內倒到地上、最後離地多高、抬頭看天角度（弧度）、側歪角度
+    third: { drop: 1.3, closer: 0.55, roll: 0.18 }, // 第三人稱：鏡頭往下壓幾公尺、拉近到原距離的幾倍、側歪角度
+    byCause: { truck: 2.0, car: 1.4, scooter: 1.0, bike: 0.5, timeout: 0 } as Record<string, number>, // 定格與震動的倍率
+  },
+
   // ── 結算畫面 ──
   resultHoldSeconds: 2.5, // 失敗/通關畫面至少停留幾秒才接受按鍵（期間不顯示「按任意鍵」）
 
