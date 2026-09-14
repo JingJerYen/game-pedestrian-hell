@@ -39,11 +39,11 @@ const SIDE_ROAD_GEO = new THREE.PlaneGeometry(
 // 測試後門：網址加 ?ix（例如 http://localhost:5173/?ix）路口就會立刻、密集出現，
 // 專門用來檢查路口的視覺。不用改 tuning.ts，也就不會被別的調參蓋掉。
 const IX_TEST = new URLSearchParams(location.search).has("ix");
-const FIRST_AT = IX_TEST ? 2 : TUNING.intersection.firstAt;
 
 export class Intersections {
   private readonly list: THREE.Group[] = [];
-  private nextAt: number = FIRST_AT;
+  private nextAt = 0; // 走到這個距離就生下一個路口（生在前方 spawnZ 處）
+  private firstPending = true; // 每關第一個路口：開場就直接放在前方 firstAt 處，不用等
   private streetIndex = 0; // 下一個路口用 streetNames 的第幾條（照表的順序輪，用完從頭）
 
   constructor(private readonly scene: THREE.Scene) {}
@@ -70,11 +70,15 @@ export class Intersections {
     }
     if (maxDist >= this.nextAt) {
       const spawnZ = IX_TEST ? 40 : t.spawnZ; // 測試模式生近一點，馬上看得到
-      this.spawnAt(-spawnZ);
-      onSpawn(-spawnZ);
+      // 第一個路口放近一點（firstAt），之後的都生在霧裡（spawnZ）
+      const z = this.firstPending && !IX_TEST ? Math.min(t.firstAt, spawnZ) : spawnZ;
+      this.firstPending = false;
+      this.spawnAt(-z);
+      onSpawn(-z);
       const min = IX_TEST ? 20 : (level.intersectionEveryMin ?? t.everyMin);
       const max = IX_TEST ? 20 : (level.intersectionEveryMax ?? t.everyMax);
-      this.nextAt = maxDist + min + Math.random() * (max - min);
+      // 下一個路口的位置 = 這個路口的位置 + 間距；換算成「走到多遠時要生」（生在前方 spawnZ）
+      this.nextAt = Math.max(0, maxDist + z + min + Math.random() * (max - min) - spawnZ);
     }
   }
 
@@ -164,6 +168,7 @@ export class Intersections {
   reset(): void {
     for (const group of this.list) this.scene.remove(group);
     this.list.length = 0;
-    this.nextAt = FIRST_AT;
+    this.nextAt = 0;
+    this.firstPending = true;
   }
 }

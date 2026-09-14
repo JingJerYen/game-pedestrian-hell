@@ -603,6 +603,7 @@ renderer.setAnimationLoop(() => {
       `time ${timeLeft.toFixed(1)}s`,
       `spawnInterval ${lv.spawnInterval.toFixed(2)}s  speedScale ${lv.speedScale.toFixed(2)}  gap ${lv.obstacleGapMin.toFixed(1)}~${lv.obstacleGapMax.toFixed(1)}  road ${lv.obstacleRoadChance.toFixed(2)}  turn ${(lv.turnChance ?? TUNING.intersection.turnChance).toFixed(2)}  bike ${(lv.bikeInterval ?? 0).toFixed(1)}s`,
       `backdrop ${world.backdropInfo}  (按 2 切換)`,
+      `draw calls ${renderer.info.render.calls}  triangles ${renderer.info.render.triangles}  textures ${renderer.info.memory.textures}  geometries ${renderer.info.memory.geometries}`,
       `cars ${c.total} (turning ${c.turning})  bikes ${c.bikes} (in lane ${c.bikesInLane}, stopped ${c.bikesStopped}, clipping ${c.bikeClips})  obstacles ${obstacles.count}  intersections ${intersections.count}`,
     ].join("\n");
   });

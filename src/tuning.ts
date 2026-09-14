@@ -358,12 +358,12 @@ export const TUNING = {
 
   // ── 路口（永遠綠燈；唯一威脅是迎面車右轉掃過斑馬線）──
   intersection: {
-    firstAt: 40, // 每關第一個路口在幾公尺處
-    everyMin: 40, // 之後每隔幾公尺一個路口（隨機取 min~max）
-    everyMax: 90,
+    firstAt: 50, // 每關第一個路口放在起點前方幾公尺（開場就在那，不用等；要 ≤ spawnZ）
+    everyMin: 30, // 之後每隔幾公尺一個路口（隨機取 min~max；關卡表可用 intersectionEveryMin/Max 覆寫）
+    everyMax: 60,
     roadDepth: 20, // 橫向小路的縱深（公尺）——縱向斑馬線要走多長就調這個
     spawnZ: 120, // 路口生成在前方多遠（生成點要藏在霧裡；測試時可暫調 40 就近看）
-    turnChance: 0.8, // 靠人行道車道的迎面車在路口右轉的機率（卡車不轉）
+    turnChance: 0.9, // 靠人行道車道的迎面車在路口右轉的機率（卡車不轉）
     turnSeconds: 0.9, // 轉彎轉 90 度花幾秒（越短轉越兇）
   },
 
@@ -384,7 +384,7 @@ export const TUNING = {
     obstacleGapMaxEnd: 9,
     roadChanceStart: 0.1, // 違停（路邊車道路障）機率
     roadChanceEnd: 0.5,
-    turnChanceEnd: 0.7, // 路口右轉機率天花板（起點沿用 intersection.turnChance）
+    turnChanceEnd: 0.9, // 路口右轉機率天花板（起點沿用 intersection.turnChance）
     bikeIntervalStart: 8, // 人行道腳踏車生成間隔（秒）
     bikeIntervalEnd: 2.0,
     backdropEveryStages: 1, // 每幾階換一張背景圖（0 = 不換）
