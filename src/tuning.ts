@@ -89,9 +89,9 @@ export const TUNING = {
   // ── 玩家型態（難度桿之一：體積越大越難閃、速度越慢。測試用按 1 輪替）──
   // speed = 速度倍率：前進/後退/橫移三個速度一起乘（1.0 = 上面的全域值）。關卡只要指定 playerForm，速度就跟著來
   playerForms: {
-    walker: { size: { x: 0.8, y: 1.6, z: 0.8 }, color: 0x3b7bff, speed: 1.0 }, // 單人步行
+    walker: { size: { x: 0.8, y: 1.6, z: 0.8 }, color: 0x3b7bff, speed: 1.1 }, // 單人步行
     stroller: { size: { x: 0.9, y: 1.6, z: 1.8 }, color: 0x2bb5a0, speed: 0.9 }, // 推嬰兒車（前面多一截）
-    wheelchair: { size: { x: 1.2, y: 1.45, z: 1.5 }, color: 0xe07b39, speed: 0.7 }, // 輪椅（更寬）
+    wheelchair: { size: { x: 1.2, y: 1.45, z: 1.5 }, color: 0xe07b39, speed: 0.8 }, // 輪椅（更寬）
   },
 
   // ── 車種（難度桿之二：機車快、卡車大。weight = 出現比重，不用加總成 1）──
@@ -458,7 +458,7 @@ export const LEVELS: LevelConfig[] = [
     goalDistance: 120,
     timeLimit: 99,
     playerForm: "walker",
-    spawnInterval: 2.5,
+    spawnInterval: 2.0,
     speedScale: 1.1,
     obstacleGapMin: 2,
     obstacleGapMax: 3,
@@ -474,8 +474,8 @@ export const LEVELS: LevelConfig[] = [
     goalDistance: 120,
     timeLimit: 99,
     playerForm: "stroller",
-    spawnInterval: 2.5,
-    speedScale: 1.0,
+    spawnInterval: 2.0,
+    speedScale: 1.1,
     obstacleGapMin: 2,
     obstacleGapMax: 4,
     obstacleRoadChance: 0.3,
@@ -489,10 +489,10 @@ export const LEVELS: LevelConfig[] = [
     backdrop: 2
   },
   {
-    goalDistance: 120,
+    goalDistance: 80,
     timeLimit: 99,
     playerForm: "wheelchair",
-    spawnInterval: 2.5,
+    spawnInterval: 2.0,
     speedScale: 1.0,
     obstacleGapMin: 2,
     obstacleGapMax: 4,
@@ -511,7 +511,7 @@ export const LEVELS: LevelConfig[] = [
     timeLimit: 99,
     playerForm: "walker",
     spawnInterval: 1.5,
-    speedScale: 1.1,
+    speedScale: 1.2,
     obstacleGapMin: 2,
     obstacleGapMax: 5,
     obstacleRoadChance: 0.1,
@@ -523,11 +523,11 @@ export const LEVELS: LevelConfig[] = [
     backdrop: 0,
   },
   {
-    goalDistance: 180,
+    goalDistance: 80,
     timeLimit: 99,
     playerForm: "wheelchair",
     spawnInterval: 2.5,
-    speedScale: 1.0,
+    speedScale: 1.2,
     obstacleGapMin: 2,
     obstacleGapMax: 4,
     obstacleRoadChance: 0.1,
@@ -536,23 +536,23 @@ export const LEVELS: LevelConfig[] = [
     intersectionEveryMax: 40,
     goalSide: "left",
     destination: "公司",
-    sidewalkLeft: "normal", // 左側人行道跟車道同色、沒有字
+    sidewalkLeft: "asphalt", // 左側人行道跟車道同色、沒有字
     sidewalkRight: "asphalt",
     backdrop: 1
   },
   {
-    goalDistance: 180,
+    goalDistance: 120,
     timeLimit: 99,
     playerForm: "stroller",
     spawnInterval: 2.0,
-    speedScale: 1.0,
+    speedScale: 1.2,
     obstacleGapMin: 2,
     obstacleGapMax: 4,
     obstacleRoadChance: 0.1,
     bikeInterval: 100,
     intersectionEveryMin: 20,
     intersectionEveryMax: 40,
-    flavorText: "這才是沒有人行道的台灣街景",
+    flavorText: "沒有人行道怎麼走",
     goalSide: "right",
     destination: "蝦皮",
     sidewalkLeft: "none", // 左側人行道跟車道同色、沒有字
@@ -571,7 +571,7 @@ export const LEVELS: LevelConfig[] = [
     bikeInterval: 100,
     intersectionEveryMin: 20,
     intersectionEveryMax: 40,
-    flavorText: "歡迎來到真正的行人地獄",
+    flavorText: "歡迎來到行人地獄",
     goalSide: "right",
     destination: "全聯",
     sidewalkLeft: "none", // 左側人行道跟車道同色、沒有字
