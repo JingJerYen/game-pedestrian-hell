@@ -115,11 +115,11 @@ export class Player {
     let movedX = 0;
     if (dirX !== 0) {
       const oldX = this.mesh.position.x;
-      // 橫向邊界 = 人行道外緣再往建築退 arcade.walkIn（可以走進騎樓凹處，柱子另外擋）
+      // 橫向邊界 = 人行道外緣（建築整棟當一個框，貼著建築線停下）
       this.mesh.position.x = THREE.MathUtils.clamp(
         oldX + dirX * strafeSpeed * dt,
-        walkMinX() - TUNING.arcade.walkIn + this.size.x / 2,
-        walkMaxX() + TUNING.arcade.walkIn - this.size.x / 2,
+        walkMinX() + this.size.x / 2,
+        walkMaxX() - this.size.x / 2,
       );
       // 橫移會撞進路障／柱子就退回原位（貼著停下）
       if (blockedAt(this.mesh.position, this.size)) {

@@ -16,7 +16,6 @@ import {
   buildingLineX,
   type Side,
 } from "./tuning";
-import type { Blocker } from "./collision";
 import {
   makeBuilding,
   restyleBuilding,
@@ -299,26 +298,6 @@ export class World {
       if (p >= 1) this.skyT = -1;
     }
     this.backdrop.update(dt, bg);
-  }
-
-  // 玩家附近的騎樓柱子（擋住玩家用）：每棟街屋面寬兩端各一根，從建築線往建築內伸 arcade.depth。
-  // 只回傳 z 在 ±range 內、而且目前有畫出來（沒被路口／目的地隱藏）的
-  pillarBlockers(z: number, range: number): Blocker[] {
-    const a = TUNING.arcade;
-    const out: Blocker[] = [];
-    for (const { side, list } of this.rows) {
-      const lineX = buildingLineX(side === -1 ? "left" : "right");
-      const x = lineX + side * (a.depth / 2); // 左側(-1)往 -X 伸、右側往 +X 伸
-      for (const b of list) {
-        const root = b.parts.root;
-        if (!root.visible || Math.abs(root.position.z - z) > b.len / 2 + range) continue;
-        const edge = b.len / 2 - a.pillar / 2;
-        for (const sz of [-1, 1]) {
-          out.push({ pos: { x, y: 2, z: root.position.z + sz * edge }, size: { x: a.depth, y: 4, z: a.pillar } });
-        }
-      }
-    }
-    return out;
   }
 
   // 重組一棟街屋（外觀與尺寸由 skins.ts 決定），正面貼齊人行道外緣

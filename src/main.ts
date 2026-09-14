@@ -17,7 +17,6 @@ import { Destination } from "./destination";
 import { TouchControls } from "./touch";
 import { ROAD_LEFT, BG_RIGHT, type DeathCause } from "./tuning";
 import { Hud } from "./hud";
-import { blockedBy, clampScrollBy } from "./collision";
 import { DebugOverlay } from "./debug";
 import { buildingModelsReady, makeTrafficLight, makeVehicleSignal } from "./skins";
 import { vehicleModelsReady, allVehiclePrototypes } from "./vehicleskins";
@@ -484,9 +483,6 @@ renderer.setAnimationLoop(() => {
     else if (mz > 1e-3) dz = -TUNING.backSpeed * formSpeed * mz * dt;
     dz = Math.max(dz, -position); // 不能退到起點之前
     dz = obstacles.clampScroll(player.mesh.position, player.size, dz); // 被路障擋住
-    // 騎樓柱子也擋人（只在允許走進騎樓時才算；玩家在 z≈0，附近幾公尺內的柱子就夠）
-    const pillars = TUNING.arcade.walkIn > 0 ? world.pillarBlockers(player.mesh.position.z, 6) : [];
-    dz = clampScrollBy(pillars, player.mesh.position, player.size, dz, TUNING.obstacleBlockShrink);
 
     intersections.update(dz, dt, timeLeft, maxDistance, lv, (z) =>
       obstacles.removeNear(z, TUNING.intersection.roadDepth / 2 + 2),
@@ -498,15 +494,7 @@ renderer.setAnimationLoop(() => {
     ); // 生成點有車就不生（不然路障會砸在車上）
     traffic.update(dt, dz, obstacles, lv, intersections);
     // 橫移量與朝向都用世界方向（可以是小數：斜著走就是斜的）
-    player.update(
-      dt,
-      mx,
-      -mz,
-      TUNING.strafeSpeed * formSpeed,
-      (p, s) => obstacles.blocksAt(p, s) || blockedBy(pillars, p, s, TUNING.obstacleBlockShrink),
-      dz,
-      turn,
-    );
+    player.update(dt, mx, -mz, TUNING.strafeSpeed * formSpeed, (p, s) => obstacles.blocksAt(p, s), dz, turn);
 
     position += dz;
     maxDistance = Math.max(maxDistance, position);

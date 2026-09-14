@@ -35,12 +35,6 @@ export const TUNING = {
   bgLanes: 2, // 對向車道數（可以走過去，但對向車從你背後來、會撞死你）
   centerGap: 0.5, // 雙黃線區的寬度（原本的分隔島拆掉了）
   buildingGap: 0.2, // 建築物離人行道外緣多遠（調 0 就是騎樓直接貼著人行道）
-  // 騎樓：行人可以越過人行道外緣走進騎樓凹處，柱子會擋人（碰撞框由 world.pillarBlockers 依街屋位置算）
-  arcade: {
-    walkIn: 1.2, // 可以走進去多深（公尺）；0 = 不能進騎樓。要 < depth，不然會穿進店面內牆
-    depth: 1.6, // 騎樓內縮深度（要跟 scripts/shophouse/kit.ts 的 arcadeDepth 一致）
-    pillar: 0.45, // 柱子寬（沿路方向；同上要跟 kit.ts 的 pillar 一致），每棟兩根在面寬兩端
-  },
 
   // ── 遠景大背景圖（以鏡頭為圓心的弧形大看板；圖放 public/assets/，載不到就純色天空）──
   backdrop: {

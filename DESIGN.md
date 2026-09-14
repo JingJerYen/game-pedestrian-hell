@@ -99,6 +99,12 @@
 | 三種樣式 | `normal` 綠鋪面＋「人行道」字（現狀）／`asphalt` 跟車道同色、有路緣白線、沒有字／`none` **那側只有車道**：人行道整條消失、建築貼到車道邊、行人走不進去，該側沒有停車格、路障、腳踏車、直向斑馬線。goalSide 指到 none 側時站上路邊車道就算到達 |
 | 設定 | 左右各自設：關卡表 `sidewalkLeft` / `sidewalkRight`；無盡模式兩側固定 normal。執行期配置在 `tuning.ts` 的 `LAYOUT`，各模組用 `hasSidewalk` / `walkMinX` / `buildingLineX` 讀 |
 
+## 2026-09-14 騎樓柱子碰撞撤回（使用者決定）
+
+| 決策 | 結果 |
+|---|---|
+| 建築碰撞 | 改回**整棟一個框**：橫向邊界就是人行道外緣（`walkMinX` / `walkMaxX`），走不進騎樓、柱子不單獨算。9/14 凌晨做的 `TUNING.arcade`＋`world.pillarBlockers` 拿掉；`collision.ts` 抽出的 `clampScrollBy` / `blockedBy` 留著給路障用 |
+
 ## 2026-09-14 asphalt 人行道＝停車場（與使用者確認）
 
 | 決策 | 結果 |
