@@ -5,7 +5,7 @@ const DEAD_ZONE = 10; // 拖曳超過幾 px 才算有方向（避免手抖）
 const FULL_RANGE = 60; // 拖到幾 px 就是全速
 const KNOB_RANGE = 44; // 搖桿頭最多離中心幾 px（純視覺）
 
-// 點到 UI 按鈕（例如右上角的視角切換）就交給按鈕處理：不生成搖桿、也不擋掉它的點擊
+// 點到 UI 按鈕就交給按鈕處理：不生成搖桿、也不擋掉它的點擊
 function onUiButton(e: Event): boolean {
   const target = e.target as HTMLElement | null;
   return !!target?.closest?.("button");

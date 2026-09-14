@@ -3,23 +3,10 @@
 export const TUNING = {
   // ── 鏡頭（第三人稱、馬力歐賽車式低視角）──
   cameraHeight: 2.4, // 鏡頭離地高度
-  cameraDistance: 6.0, // 鏡頭在玩家後方多遠（視角 2 第三人稱；視角 1 用下面 firstPerson.distance）
+  cameraDistance: 6.0, // 鏡頭在玩家後方多遠
   cameraFov: 70, // 視野角度（越大越有速度感，也越魚眼）
-  cameraLookAhead: 14, // 鏡頭看向玩家前方多遠的地面（決定俯角，兩個視角共用）
+  cameraLookAhead: 14, // 鏡頭看向玩家前方多遠的地面（決定俯角）
   cameraXDamp: 4, // 鏡頭橫向跟隨的平滑度（越大跟越緊）
-  // 視角切換（右上角按鈕或 C 鍵，選擇記在瀏覽器）：
-  // "fixed"  = 視角 2：第三人稱——用上面的 cameraDistance / cameraHeight，永遠看馬路前方、↑ 沿馬路走
-  // "follow" = 視角 1：第一人稱——鏡頭在人物眼睛位置、跟著人物朝向轉、按鍵跟畫面（↑ 永遠往畫面前方）
-  cameraModeDefault: "fixed" as "fixed" | "follow",
-  firstPerson: {
-    distance: -0.1, // 視角 1 的 cameraDistance（略往前免得看到自己）
-    height: 1.5, // 視角 1 的 cameraHeight（眼睛高度）
-    // 視線跟人物轉頭的方式是「snap」：對齊到最近的 45° 再幾乎瞬間轉過去（VR 的舒適做法）。
-    // 試過平滑慢轉會暈、完全不轉又看不到側邊，snap 是折衷（與使用者確認）
-    snapDamp: 14, // 跳到下一個 45° 的收斂速度（越大越接近瞬間；放開按鍵維持朝向，不回正）
-    yawLimit: Math.PI / 2, // 視線最多離馬路前方幾度（弧度）：按的方向會轉超過這個角度就只走不轉頭（↓ = 看著前方倒退）
-  },
-
   // ── 直式畫面（手機豎拿）鏡頭覆寫：畫面比例 < 1 時自動採用 ──
   // 直式水平視野窄，鏡頭要拉高拉遠＋加大 FOV 才看得到兩側車道
   cameraPortrait: {
@@ -280,7 +267,7 @@ export const TUNING = {
   // 網路太慢等超過這麼多秒就直接開始
   loadWaitMax: 30,
 
-  // ── 撞擊效果（被撞那一刻起的一兩秒：定格 → 慢動作＋鏡頭震動＋紅閃；第一人稱鏡頭倒地朝天）──
+  // ── 撞擊效果（被撞那一刻起的一兩秒：定格 → 慢動作＋鏡頭震動＋紅閃；鏡頭壓低拉近側歪）──
   // 慢動作結束才出失敗畫面。超時（timeout）倍率 0 = 沒有這些，直接出畫面
   hitFx: {
     freezeSeconds: 0.08, // 定格：畫面凍住幾秒（乘兇手倍率）
@@ -288,8 +275,10 @@ export const TUNING = {
     shakeAmp: 0.22, // 震動幅度（公尺，乘兇手倍率），由大到小衰減
     slowSeconds: 1.5, // 慢動作持續幾秒
     slowScale: 0.3, // 慢動作時世界（車流、倒下動畫）跑幾倍速
-    fall: { seconds: 1.0, height: 0.35, pitch: 0.8, roll: 0.35 }, // 第一人稱：幾秒內倒到地上、最後離地多高、抬頭看天角度（弧度）、側歪角度
-    third: { drop: 1.3, closer: 0.55, roll: 0.18 }, // 第三人稱：鏡頭往下壓幾公尺、拉近到原距離的幾倍、側歪角度
+    fallSeconds: 1.0, // 鏡頭壓低／拉近／側歪在幾秒內完成
+    drop: 1.3, // 鏡頭往下壓幾公尺
+    closer: 0.55, // 拉近到原距離的幾倍
+    roll: 0.18, // 側歪角度（弧度）
     byCause: { truck: 2.0, car: 1.4, scooter: 1.0, bike: 0.5, timeout: 0 } as Record<string, number>, // 定格與震動的倍率
   },
 

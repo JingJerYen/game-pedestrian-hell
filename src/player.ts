@@ -101,7 +101,7 @@ export class Player {
 
   // dirX：往右的量（-1 ~ 1）；dirZ：往前的量（-1 ~ 1）——世界方向的意圖，可以是小數，
   // 決定橫移速度比例與角色面向；dz：這一幀世界捲動量（用來同步走路動畫）；
-  // turn = false 就只走不轉頭（第一人稱往後退：視線不能轉到後方，但要退得回來）
+
   update(
     dt: number,
     dirX: number,
@@ -109,9 +109,8 @@ export class Player {
     strafeSpeed: number,
     blockedAt: (pos: THREE.Vector3, size: Size3) => boolean, // 這個位置會不會撞進路障／柱子
     dz: number,
-    turn = true,
   ): void {
-    if (turn) this.turnToward(dirX, dirZ, dt);
+    this.turnToward(dirX, dirZ, dt);
     let movedX = 0;
     if (dirX !== 0) {
       const oldX = this.mesh.position.x;

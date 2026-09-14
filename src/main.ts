@@ -136,8 +136,6 @@ function startLevel(index: number): void {
   LAYOUT.right = lv.sidewalkRight ?? "normal";
   player.setForm(lv.playerForm);
   player.reset(); // 出發點依 LAYOUT（有人行道從人行道出發）
-  cameraYaw = 0; // 鏡頭回到正後方（人物 reset 後面向前方）
-  latchIx = latchIz = NaN; // 方向鎖定重算
   hitT = -1; // 撞擊效果結束
   pendingFail = null;
   traffic.reset();
@@ -232,7 +230,7 @@ function pickFrom(pool: readonly string[]): string {
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : "";
 }
 
-// ── 撞擊效果（TUNING.hitFx）：定格 → 慢動作＋鏡頭震動＋紅閃，第一人稱鏡頭倒地朝天；
+// ── 撞擊效果（TUNING.hitFx）：定格 → 慢動作＋鏡頭震動＋紅閃，鏡頭壓低拉近側歪；
 //    慢動作結束才出失敗畫面（pendingFail）。超時倍率 0 = 直接出畫面 ──
 let hitT = -1; // 撞到之後過了幾秒；-1 = 沒在播
 let hitMult = 0; // 兇手倍率（定格與震動）
@@ -297,56 +295,15 @@ if ("ontouchstart" in window) {
   document.getElementById("hint")!.textContent = "按住畫面拖曳移動";
 }
 
-// 鏡頭：馬力歐賽車式——在玩家後方偏低，橫移時稍微跟過去。
+// 鏡頭：馬力歐賽車式——在玩家後方偏低、永遠看馬路前方，橫移時稍微跟過去。
 // 直式畫面（手機豎拿）自動改用 cameraPortrait 那組參數。
+// （第一人稱視角試過又拿掉了：看不到背後來車、又容易暈，決策見 DESIGN.md）
 let cameraX = 0;
-let cameraYaw = 0; // 目前鏡頭繞到人物哪個方向（弧度，0 = 正後方），朝目標平滑收斂
-// 第一人稱的方向鎖定：按鍵是畫面方向，在「剛按下／換方向」那一刻依當時視線換算成世界方向，
-// 按著不放就沿用那個世界方向，不隨鏡頭轉動重新解讀。
-// 不鎖的話按住 ← 會一直原地打轉：往左走 → 人轉頭 → 鏡頭跟著轉 → ← 又變成新視線的左邊
-let latchIx = NaN; // 上次換算時的輸入方向（單位向量；NaN = 下一幀一定重算）
-let latchIz = NaN;
-let latchMx = 0; // 換算出來的世界方向（單位向量），每幀再乘目前的推桿力度
-let latchMz = 0;
-const LATCH_ANGLE = Math.PI / 8; // 搖桿方向偏離上次鎖定超過這個角度才重算（手指微動不重算，避免視線跟著晃）
-
-// 鏡頭模式（fixed / follow）：玩家可切換，選擇記在瀏覽器
-type CameraMode = "fixed" | "follow";
-let cameraMode: CameraMode = TUNING.cameraModeDefault;
-try {
-  const saved = localStorage.getItem("cameraMode");
-  if (saved === "fixed" || saved === "follow") cameraMode = saved;
-} catch {
-  /* 無痕模式等情況讀不到就用預設 */
-}
-function applyCameraMode(mode: CameraMode): void {
-  cameraMode = mode;
-  hud.setCameraModeLabel(mode === "follow" ? "視角 1：第一人稱" : "視角 2：第三人稱");
-  try {
-    localStorage.setItem("cameraMode", mode);
-  } catch {
-    /* 存不了就算了 */
-  }
-}
-function toggleCameraMode(): void {
-  applyCameraMode(cameraMode === "follow" ? "fixed" : "follow");
-}
-hud.bindCameraToggle(toggleCameraMode);
-applyCameraMode(cameraMode);
-window.addEventListener("keydown", (e) => {
-  if (e.key === "c" || e.key === "C") toggleCameraMode();
-});
 function updateCamera(dt: number): void {
   const t = TUNING;
   const portrait = camera.aspect < 1;
-  const firstPerson = cameraMode === "follow";
-  const height = firstPerson
-    ? t.firstPerson.height
-    : portrait ? t.cameraPortrait.height : t.cameraHeight;
-  const distance = firstPerson
-    ? t.firstPerson.distance
-    : portrait ? t.cameraPortrait.distance : t.cameraDistance;
-  player.mesh.visible = !firstPerson; // 第一人稱：別看到自己的後腦勺
+  const height = portrait ? t.cameraPortrait.height : t.cameraHeight;
+  const distance = portrait ? t.cameraPortrait.distance : t.cameraDistance;
   const lookAhead = portrait ? t.cameraPortrait.lookAhead : t.cameraLookAhead;
   const fov = portrait ? t.cameraPortrait.fov : t.cameraFov;
   if (camera.fov !== fov) {
@@ -354,40 +311,21 @@ function updateCamera(dt: number): void {
     camera.updateProjectionMatrix();
   }
   cameraX = THREE.MathUtils.damp(cameraX, player.mesh.position.x, t.cameraXDamp, dt);
-  // 第一人稱：視線跟著人物「目前的朝向」（mesh.rotation.y，0 = 面向前方），對齊到最近的 45° 後
-  // 幾乎瞬間轉過去（snap：畫面不會有慢慢旋轉的過程，比較不暈）。放開按鍵人物不轉，視線就停在那裡。
-  // 第三人稱永遠看前方（yaw 收斂到 0）
-  const SNAP = Math.PI / 4;
-  const targetYaw = firstPerson ? Math.round(player.mesh.rotation.y / SNAP) * SNAP : 0;
-  const delta = Math.atan2(Math.sin(targetYaw - cameraYaw), Math.cos(targetYaw - cameraYaw));
-  cameraYaw += delta * (1 - Math.exp(-t.firstPerson.snapDamp * dt));
-  const sin = Math.sin(cameraYaw);
-  const cos = Math.cos(cameraYaw);
-  // 以人物為圓心：正後方 (0, height, distance) 繞 Y 軸轉 cameraYaw；視線焦點同樣轉
-  camera.position.set(cameraX + distance * sin, height, distance * cos);
-  const lookX = cameraX - lookAhead * sin;
-  const lookZ = -lookAhead * cos;
+  camera.position.set(cameraX, height, distance);
   if (hitT < 0) {
-    camera.lookAt(lookX, 0.8, lookZ);
+    camera.lookAt(cameraX, 0.8, -lookAhead);
     return;
   }
-  // 撞擊效果：定格結束後鏡頭倒下（第一人稱倒到地上抬頭看天、第三人稱往下壓拉近側歪）＋震動
+  // 撞擊效果：定格結束後鏡頭往下壓、拉近人物、側歪，＋震動
   const fx = TUNING.hitFx;
   const since = hitT - fx.freezeSeconds * hitMult; // 定格結束後過了幾秒
-  const p = THREE.MathUtils.smoothstep(since, 0, fx.fall.seconds); // 倒下進度 0 → 1
-  if (firstPerson) {
-    camera.position.y = THREE.MathUtils.lerp(height, fx.fall.height, p);
-    camera.lookAt(lookX, 0.8, lookZ);
-    camera.rotateX(fx.fall.pitch * p); // 抬頭看天
-    camera.rotateZ(fx.fall.roll * p); // 側歪
-  } else {
-    const px = player.mesh.position.x;
-    camera.position.x += (px - camera.position.x) * (1 - fx.third.closer) * p; // 拉近人物
-    camera.position.z *= 1 - (1 - fx.third.closer) * p;
-    camera.position.y -= fx.third.drop * p; // 往下壓
-    camera.lookAt(px, 0.6, 0);
-    camera.rotateZ(fx.third.roll * p);
-  }
+  const p = THREE.MathUtils.smoothstep(since, 0, fx.fallSeconds); // 倒下進度 0 → 1
+  const px = player.mesh.position.x;
+  camera.position.x += (px - camera.position.x) * (1 - fx.closer) * p; // 拉近人物
+  camera.position.z *= 1 - (1 - fx.closer) * p;
+  camera.position.y -= fx.drop * p; // 往下壓
+  camera.lookAt(px, 0.6, 0);
+  camera.rotateZ(fx.roll * p);
   if (since >= 0 && since < fx.shakeSeconds) {
     const amp = fx.shakeAmp * hitMult * (1 - since / fx.shakeSeconds); // 由大到小
     camera.position.x += (Math.random() - 0.5) * 2 * amp;
@@ -448,7 +386,6 @@ renderer.setAnimationLoop(() => {
     // 世界捲動量由玩家輸入決定；車輛自己的車速在 traffic 裡另外加
     // （行人速度：關卡有覆寫就用關卡的，沒有就用全域預設）
     // 按鍵 → 世界方向：mx = 往馬路右邊的量、mz = 往馬路後方的量（-1 ~ 1）。
-    // 第一人稱時按鍵是畫面座標：先依視線方向轉成世界座標（鏡頭看向哪，↑ 就往哪）
     // 觸控時用搖桿的類比向量（無段式，方向與力度都連續）；鍵盤是 -1/0/1
     let ix = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
     let iz = held.has("up") ? 1 : held.has("down") ? -1 : 0;
@@ -456,34 +393,8 @@ renderer.setAnimationLoop(() => {
       ix = touch.axis.x;
       iz = -touch.axis.y;
     }
-    let mx = ix;
-    let mz = -iz;
-    let turn = true; // 這一幀人物要不要轉向移動方向（第一人稱往後退時不轉）
-    if (cameraMode === "follow") {
-      const mag = Math.hypot(ix, iz);
-      if (mag < 1e-3) latchIx = latchIz = NaN; // 放開：下次按下重算
-      else {
-        const ux = ix / mag;
-        const uz = iz / mag;
-        // 方向跟上次鎖定的差超過門檻（或剛按下）才重算：用「現在」的視線換算成世界方向
-        const changed = Number.isNaN(latchIx) || Math.acos(THREE.MathUtils.clamp(ux * latchIx + uz * latchIz, -1, 1)) > LATCH_ANGLE;
-        if (changed) {
-          latchIx = ux;
-          latchIz = uz;
-          const s = Math.sin(cameraYaw);
-          const c = Math.cos(cameraYaw);
-          latchMx = -uz * s + ux * c;
-          latchMz = -uz * c - ux * s;
-        }
-      }
-      mx = Number.isNaN(latchIx) ? 0 : latchMx * mag;
-      mz = Number.isNaN(latchIx) ? 0 : latchMz * mag;
-      // 視線限制：想走的方向會讓人轉到馬路前方 ±yawLimit 之外（斜後方、正後方）就「只走不轉頭」——
-      // 按 ↓ 是看著前方倒退，走過頭才退得回來；視線永遠不會轉到面向來時路。
-      // 角度慣例同 player.turnToward：0 = 前方、±90° = 正左右、180° = 後方
-      const heading = Math.atan2(-mx, -mz);
-      if ((mx !== 0 || mz !== 0) && Math.abs(heading) > TUNING.firstPerson.yawLimit + 1e-6) turn = false;
-    }
+    const mx = ix;
+    const mz = -iz;
     // 行人速度 = 全域速度 × 這關型態的倍率（輪椅慢、嬰兒車略慢）
     const formSpeed = TUNING.playerForms[lv.playerForm].speed;
     let dz = 0;
@@ -508,7 +419,7 @@ renderer.setAnimationLoop(() => {
     traffic.update(dt, dz, obstacles, lv, intersections);
     tp = profTake("traffic", tp);
     // 橫移量與朝向都用世界方向（可以是小數：斜著走就是斜的）
-    player.update(dt, mx, -mz, TUNING.strafeSpeed * formSpeed, (p, s) => obstacles.blocksAt(p, s), dz, turn);
+    player.update(dt, mx, -mz, TUNING.strafeSpeed * formSpeed, (p, s) => obstacles.blocksAt(p, s), dz);
     profTake("player", tp);
 
     position += dz;
@@ -558,7 +469,7 @@ renderer.setAnimationLoop(() => {
     if (clearTimer <= 0) advanceLevel();
   } else if (state === "fail" && hitT >= 0) {
     // 撞擊效果：定格（世界與動畫都停）→ 慢動作（車流慢慢跑、人慢慢倒）→ 出失敗畫面；
-    // 之後車流繼續用慢動作跑（撞你的車會自己開走，第一人稱躺在地上才不會卡在車子裡面）
+    // 之後車流繼續用慢動作跑（撞你的車會自己開走）
     const fx = TUNING.hitFx;
     hitT += dt;
     const freeze = fx.freezeSeconds * hitMult;
