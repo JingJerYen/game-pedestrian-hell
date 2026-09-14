@@ -7,6 +7,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { PlayerForm } from "./tuning";
 import type { Size3 } from "./collision";
 
@@ -93,14 +94,10 @@ export function makeCharacterRig(
     root.add(chair);
   }
   if (form === "stroller") {
-    // 嬰兒車佔位：推在身前的小方塊（素材到位後換成真的嬰兒車模型）
-    const box = new THREE.Mesh(
-      new THREE.BoxGeometry(0.55, 0.75, 0.85),
-      new THREE.MeshLambertMaterial({ color: 0x8a94a3 }),
-    );
-    // root 已轉 180 度，root 座標的 +z 是玩家的前進方向
-    box.position.set(0, -size.y / 2 + 0.375, size.z / 2 - 0.45);
-    root.add(box);
+    // 嬰兒車：程式組的積木風模型（makeStroller），推在身前；root 座標的 +z 是玩家的前進方向
+    const stroller = makeStroller();
+    stroller.position.set(0, -size.y / 2, size.z / 2 - 0.9); // 地面高度、車廂前緣貼齊碰撞箱前緣
+    root.add(stroller);
     model.position.z -= size.z / 2 - 0.5; // 人往後站，空間留給嬰兒車
   }
 
@@ -110,4 +107,81 @@ export function makeCharacterRig(
     actions.set(clip.name, mixer.clipAction(clip));
   }
   return { root, mixer, actions };
+}
+
+// ── 嬰兒車（積木風，跟 Kenney 角色同一種畫風）──
+// 原點在地面、+z 是前進方向；車廂前緣在 z≈0.9、推把在 z≈0（靠人）。
+// 全部用方塊和圓柱拼，同色的合併成一個 mesh（4 種顏色 = 4 次繪製）
+const STROLLER_COLORS = {
+  body: 0x2f5d8a, // 車廂／遮陽篷（深藍）
+  trim: 0x6f9fd0, // 遮陽篷邊、椅墊（淺藍）
+  frame: 0xb8bcc2, // 骨架、推把（銀灰）
+  wheel: 0x2a2a2e, // 輪子、握把（黑）
+};
+function makeStroller(): THREE.Group {
+  const parts: Record<keyof typeof STROLLER_COLORS, THREE.BufferGeometry[]> = { body: [], trim: [], frame: [], wheel: [] };
+  const box = (k: keyof typeof STROLLER_COLORS, w: number, h: number, d: number, x: number, y: number, z: number, tiltX = 0) => {
+    const g = new THREE.BoxGeometry(w, h, d);
+    if (tiltX) g.rotateX(tiltX);
+    g.translate(x, y, z);
+    parts[k].push(g);
+  };
+  // 沿某方向的細桿：從 a 到 b 的圓柱
+  const rod = (k: keyof typeof STROLLER_COLORS, r: number, a: THREE.Vector3, b: THREE.Vector3) => {
+    const dir = new THREE.Vector3().subVectors(b, a);
+    const len = dir.length();
+    const g = new THREE.CylinderGeometry(r, r, len, 8);
+    g.applyMatrix4(
+      new THREE.Matrix4().makeRotationFromQuaternion(
+        new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize()),
+      ),
+    );
+    g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+    parts[k].push(g);
+  };
+  // 輪子：軸沿 x 的圓柱（在 z 方向滾）
+  const wheel = (r: number, x: number, y: number, z: number) => {
+    const g = new THREE.CylinderGeometry(r, r, 0.05, 14);
+    g.rotateZ(Math.PI / 2);
+    g.translate(x, y, z);
+    parts.wheel.push(g);
+    const hub = new THREE.CylinderGeometry(r * 0.35, r * 0.35, 0.06, 8);
+    hub.rotateZ(Math.PI / 2);
+    hub.translate(x, y, z);
+    parts.frame.push(hub);
+  };
+  const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+
+  // 車廂：微微向後仰的深盒，裡面一片淺色椅墊
+  box("body", 0.5, 0.28, 0.62, 0, 0.6, 0.55, -0.12);
+  box("trim", 0.42, 0.04, 0.5, 0, 0.72, 0.55, -0.12);
+  // 遮陽篷：前上方一塊往前突出的弧狀盒（用兩塊疊出弧感）
+  box("body", 0.54, 0.16, 0.34, 0, 0.9, 0.7);
+  box("body", 0.52, 0.1, 0.2, 0, 0.98, 0.58, 0.25);
+  box("trim", 0.56, 0.03, 0.36, 0, 0.83, 0.7);
+  // 置物籃：下方一個扁盒
+  box("trim", 0.4, 0.1, 0.4, 0, 0.3, 0.5);
+  // 骨架：車廂四角往下到輪軸，前後各兩根
+  for (const sx of [-1, 1]) {
+    rod("frame", 0.015, V(sx * 0.22, 0.5, 0.82), V(sx * 0.24, 0.1, 0.85)); // 前腳
+    rod("frame", 0.015, V(sx * 0.22, 0.5, 0.28), V(sx * 0.24, 0.13, 0.25)); // 後腳
+    rod("frame", 0.015, V(sx * 0.24, 0.12, 0.25), V(sx * 0.24, 0.1, 0.85)); // 底桿
+    // 推把：從車廂後上角斜向上、向後到人手邊
+    rod("frame", 0.016, V(sx * 0.22, 0.62, 0.3), V(sx * 0.2, 0.98, 0.02));
+  }
+  rod("wheel", 0.022, V(-0.22, 0.98, 0.02), V(0.22, 0.98, 0.02)); // 握把橫桿
+  // 輪子：前小後大
+  wheel(0.09, -0.27, 0.09, 0.85);
+  wheel(0.09, 0.27, 0.09, 0.85);
+  wheel(0.12, -0.27, 0.12, 0.25);
+  wheel(0.12, 0.27, 0.12, 0.25);
+
+  const group = new THREE.Group();
+  for (const k of Object.keys(parts) as (keyof typeof STROLLER_COLORS)[]) {
+    if (!parts[k].length) continue;
+    const mesh = new THREE.Mesh(mergeGeometries(parts[k]), new THREE.MeshLambertMaterial({ color: STROLLER_COLORS[k] }));
+    mesh.frustumCulled = false; // 跟角色一樣，玩家只有一台，別被誤判剔除
+    group.add(mesh);
+  }
+  return group;
 }
