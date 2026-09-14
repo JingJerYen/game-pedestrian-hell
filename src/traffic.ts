@@ -23,7 +23,7 @@ import {
   type DeathCause,
 } from "./tuning";
 import { aabbHit, type Size3 } from "./collision";
-import { preloadVehicleSkins, makeVehicleMesh } from "./vehicleskins";
+import { preloadVehicleSkins, makeVehicleMesh, makeHeadlightGlow } from "./vehicleskins";
 import type { Player } from "./player";
 import type { Intersections } from "./intersections";
 import type { Obstacles } from "./obstacles";
@@ -394,7 +394,10 @@ export class Traffic {
     const mesh = makeVehicleMesh(type, color); // 3D 模型→貼圖箱→色塊（vehicleskins.ts）
     const baseX = colX(col) + offset;
     mesh.position.set(baseX, v.size.y / 2, z);
-    if (dir === -1) mesh.rotation.y = Math.PI;
+    if (dir === -1) {
+      mesh.rotation.y = Math.PI;
+      mesh.add(makeHeadlightGlow(v.size)); // 從背後來的車：車頭燈光暈打在前方地面，玩家先看到光再看到車
+    }
     this.scene.add(mesh);
     // 左（迎面）右（同向）車速可分開調，沒個別設定就用 speedScale
     const scale =
@@ -453,7 +456,10 @@ export class Traffic {
     const color = b.colors[Math.floor(Math.random() * b.colors.length)];
     const mesh = makeVehicleMesh("bike", color); // 腳踏車也吃同一套外觀管線
     mesh.position.set(baseX, b.size.y / 2, spawnZ);
-    if (dir === -1) mesh.rotation.y = Math.PI;
+    if (dir === -1) {
+      mesh.rotation.y = Math.PI;
+      if (TUNING.headlight.bikes) mesh.add(makeHeadlightGlow(b.size, TUNING.headlight.bikeScale));
+    }
     this.scene.add(mesh);
     const speed = THREE.MathUtils.lerp(b.speedMin, b.speedMax, Math.random());
     this.cars.push({

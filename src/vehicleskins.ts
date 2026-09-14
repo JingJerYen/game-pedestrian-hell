@@ -294,3 +294,63 @@ export function makeVehicleMesh(kind: string, color: number): THREE.Object3D {
   }
   return new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color }));
 }
+
+// ── 車頭燈光暈 ──
+// 平貼在地面的一片漸層（靠車頭亮、往前淡出、左右柔邊），用加色混合疊在路面上。
+// 貼圖與材質全部共用，每台車只多一個 mesh（一次繪製）
+let glowMat: THREE.MeshBasicMaterial | null = null;
+let glowGeo: THREE.PlaneGeometry | null = null;
+function headlightMaterial(): THREE.MeshBasicMaterial {
+  if (glowMat) return glowMat;
+  const c = TUNING.headlight;
+  const canvas = document.createElement("canvas");
+  canvas.width = 64;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d")!;
+  const img = ctx.createImageData(64, 128);
+  const smooth = (a: number, b: number, v: number) => {
+    const k = Math.min(1, Math.max(0, (v - a) / (b - a)));
+    return k * k * (3 - 2 * k);
+  };
+  for (let y = 0; y < 128; y++) {
+    const t = y / 127; // 0 = 靠車頭、1 = 最遠
+    const along = 1 - smooth(0.55, 1, t); // 前 55% 全亮，之後平滑淡到 0（從後方看，車身會擋住車頭那段，遠端要夠亮）
+    const spread = 0.6 + 0.4 * Math.min(1, t / 0.5); // 車頭處就有六成寬，到一半處開到全寬
+    for (let x = 0; x < 64; x++) {
+      const u = Math.abs((x / 63 - 0.5) * 2); // 0 = 中線、1 = 邊緣
+      const edge = 1 - smooth(spread * 0.55, spread, u); // 左右柔邊
+      const a = along * edge;
+      const i = (y * 64 + x) * 4;
+      img.data[i] = 255;
+      img.data[i + 1] = 255;
+      img.data[i + 2] = 255;
+      img.data[i + 3] = a * 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  glowMat = new THREE.MeshBasicMaterial({
+    map: tex,
+    color: c.color,
+    transparent: true,
+    opacity: c.opacity,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  return glowMat;
+}
+
+// 掛在車 mesh 底下的光暈：mesh 原點＝碰撞箱中心、車頭朝本地 +Z（同向車整台轉了 180°，本地 +Z 就是世界 -Z）
+export function makeHeadlightGlow(size: Size3, scale = 1): THREE.Mesh {
+  const c = TUNING.headlight;
+  glowGeo ??= new THREE.PlaneGeometry(1, 1);
+  const mesh = new THREE.Mesh(glowGeo, headlightMaterial());
+  const len = c.length * scale;
+  const wid = c.width * scale;
+  mesh.rotation.x = -Math.PI / 2; // 平貼地面；canvas 上緣（亮端）是 v=1 → 平面 +y → 轉完後在 -Z 端，也就是貼著車頭那端亮
+  mesh.scale.set(wid, len, 1);
+  mesh.position.set(0, -size.y / 2 + 0.03, size.z / 2 + len / 2); // 地面上方一點點，從車頭往前鋪
+  mesh.renderOrder = 1; // 路面之後畫（透明疊加）
+  return mesh;
+}
