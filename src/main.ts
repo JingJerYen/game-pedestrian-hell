@@ -415,6 +415,14 @@ function updateRearWarning(): void {
   warnWasOn = on;
 }
 
+// debug overlay 用：各模組每幀耗時（毫秒，指數平滑平均），找出邏輯時間花在哪
+const prof = { ix: 0, dest: 0, world: 0, obs: 0, traffic: 0, player: 0 };
+function profTake(key: keyof typeof prof, t0: number): number {
+  const now = performance.now();
+  prof[key] = prof[key] * 0.9 + (now - t0) * 0.1;
+  return now;
+}
+
 const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
   // dt 上限 0.05 秒：切分頁回來時避免一大步跳幀（穿過車或瞬移）
@@ -484,17 +492,24 @@ renderer.setAnimationLoop(() => {
     dz = Math.max(dz, -position); // 不能退到起點之前
     dz = obstacles.clampScroll(player.mesh.position, player.size, dz); // 被路障擋住
 
+    let tp = performance.now();
     intersections.update(dz, dt, timeLeft, maxDistance, lv, (z) =>
       obstacles.removeNear(z, TUNING.intersection.roadDepth / 2 + 2),
     );
+    tp = profTake("ix", tp);
     destination.update(dz, position, lv);
+    tp = profTake("dest", tp);
     world.update(dz, intersections.centers(), destination.zone, obstacles.parkingZones());
+    tp = profTake("world", tp);
     obstacles.update(dz, maxDistance, lv, intersections, (x0, x1, z0, z1) =>
       traffic.anyVehicleIn(x0, x1, z0, z1),
     ); // 生成點有車就不生（不然路障會砸在車上）
+    tp = profTake("obs", tp);
     traffic.update(dt, dz, obstacles, lv, intersections);
+    tp = profTake("traffic", tp);
     // 橫移量與朝向都用世界方向（可以是小數：斜著走就是斜的）
     player.update(dt, mx, -mz, TUNING.strafeSpeed * formSpeed, (p, s) => obstacles.blocksAt(p, s), dz, turn);
+    profTake("player", tp);
 
     position += dz;
     maxDistance = Math.max(maxDistance, position);
@@ -603,6 +618,7 @@ renderer.setAnimationLoop(() => {
       `time ${timeLeft.toFixed(1)}s`,
       `spawnInterval ${lv.spawnInterval.toFixed(2)}s  speedScale ${lv.speedScale.toFixed(2)}  gap ${lv.obstacleGapMin.toFixed(1)}~${lv.obstacleGapMax.toFixed(1)}  road ${lv.obstacleRoadChance.toFixed(2)}  turn ${(lv.turnChance ?? TUNING.intersection.turnChance).toFixed(2)}  bike ${(lv.bikeInterval ?? 0).toFixed(1)}s`,
       `backdrop ${world.backdropInfo}  (按 2 切換)`,
+      `邏輯分項 ms: 路口 ${prof.ix.toFixed(1)}  目的地 ${prof.dest.toFixed(1)}  世界 ${prof.world.toFixed(1)}  路障 ${prof.obs.toFixed(1)}  車流 ${prof.traffic.toFixed(1)}  玩家 ${prof.player.toFixed(1)}`,
       `draw calls ${renderer.info.render.calls}  triangles ${renderer.info.render.triangles}  textures ${renderer.info.memory.textures}  geometries ${renderer.info.memory.geometries}`,
       `cars ${c.total} (turning ${c.turning})  bikes ${c.bikes} (in lane ${c.bikesInLane}, stopped ${c.bikesStopped}, clipping ${c.bikeClips})  obstacles ${obstacles.count}  intersections ${intersections.count}`,
     ].join("\n");

@@ -160,16 +160,8 @@ export class World {
     // 路旁建築：從鏡頭後方（WRAP_Z）開始一棟接一棟往遠處排，排滿整段路
     for (const side of [-1, 1] as const) {
       const list: RowBuilding[] = [];
-      let nearZ = WRAP_Z; // 下一棟的近端要貼在這裡
-      while (WRAP_Z - nearZ < ROAD_LENGTH) {
-        const b: RowBuilding = { parts: makeBuilding(), len: 0 };
-        this.restyleRowBuilding(b, side);
-        b.parts.root.position.z = nearZ - b.len / 2;
-        nearZ -= b.len;
-        this.scene.add(b.parts.root);
-        list.push(b);
-      }
       this.rows.push({ side, list });
+      this.fillRow(list, side);
     }
 
     // 路面標記（慢/速限50，裝飾）：成對出現在同一側的每條車道、同一個 z，
@@ -300,6 +292,43 @@ export class World {
     this.backdrop.update(dt, bg);
   }
 
+  // 拆下來的街屋先收著，補的時候再拿出來換款（省得一直 new）
+  private readonly spareBuildings: RowBuilding[] = [];
+
+  // 把一排補到剛好蓋滿 [WRAP_Z − ROAD_LENGTH, WRAP_Z]：遠端不夠往遠處接、近端不夠（倒著走）往近處接。
+  // 每次補的那棟都換新款（restyle），所以街景不會一直重複
+  private fillRow(list: RowBuilding[], side: -1 | 1): void {
+    let nearEdge = -Infinity;
+    let farEdge = Infinity;
+    for (const b of list) {
+      nearEdge = Math.max(nearEdge, b.parts.root.position.z + b.len / 2);
+      farEdge = Math.min(farEdge, b.parts.root.position.z - b.len / 2);
+    }
+    if (list.length === 0) nearEdge = farEdge = WRAP_Z;
+    while (farEdge > WRAP_Z - ROAD_LENGTH) {
+      const b = this.takeBuilding(side);
+      b.parts.root.position.z = farEdge - b.len / 2;
+      farEdge -= b.len;
+      list.push(b);
+    }
+    while (nearEdge < WRAP_Z) {
+      const b = this.takeBuilding(side);
+      b.parts.root.position.z = nearEdge + b.len / 2;
+      nearEdge += b.len;
+      list.push(b);
+    }
+  }
+
+  // 拿一棟（備用池有就重用）換好新款、放進場景
+  private takeBuilding(side: -1 | 1): RowBuilding {
+    const b = this.spareBuildings.pop() ?? { parts: makeBuilding(), len: 0 };
+    this.restyleRowBuilding(b, side);
+    // 保險：面寬算出來不正常（模型包圍框空掉之類）就給個最小值，fillRow 的 while 才不會卡死
+    if (!(b.len > 0.5)) b.len = TUNING.buildings.frontageMin;
+    this.scene.add(b.parts.root);
+    return b;
+  }
+
   // 重組一棟街屋（外觀與尺寸由 skins.ts 決定），正面貼齊人行道外緣
   // 街屋模型全到了就把整排色塊換成模型（只做一次）。update 每幀會叫；
   // main.ts 在開場橫幅階段（還沒 running）也會叫，玩家開始走時就已經是模型
@@ -325,6 +354,16 @@ export class World {
       b.parts.root.position.z = nearZ - b.len / 2;
       nearZ -= b.len;
     }
+    // 面寬變了：多出路長的拆掉、不夠的補齊
+    for (let i = list.length - 1; i >= 0; i--) {
+      const b = list[i];
+      if (b.parts.root.position.z + b.len / 2 < WRAP_Z - ROAD_LENGTH) {
+        this.scene.remove(b.parts.root);
+        list.splice(i, 1);
+        this.spareBuildings.push(b);
+      }
+    }
+    this.fillRow(list, side);
   }
 
   // 「人行道」字要放哪一側：只挑綠鋪面的那側（兩側都不是就隨便放，反正會被隱藏）
@@ -392,24 +431,18 @@ export class World {
     this.applyBuildingModels();
     for (const { side, list } of this.rows) {
       for (const b of list) b.parts.root.position.z += dz;
-      // 整棟捲到鏡頭後面 → 接到最遠那棟後面（換一棟新的）；倒著走則反過來接到最近那棟前面
-      for (let guard = list.length; guard > 0; guard--) {
-        let near = list[0];
-        let far = list[0];
-        for (const b of list) {
-          if (b.parts.root.position.z > near.parts.root.position.z) near = b;
-          if (b.parts.root.position.z < far.parts.root.position.z) far = b;
+      // 整棟捲到鏡頭後面（或倒著走時整棟超出路長）→ 拆掉收進備用池；兩端不夠長就從池子補一棟（換新款）。
+      // 不用「搬到另一端」：每棟面寬不同，搬來搬去一排的總長會漂，漂過頭兩端條件會同時成立、每幀來回搬幾十次
+      for (let i = list.length - 1; i >= 0; i--) {
+        const b = list[i];
+        const z = b.parts.root.position.z;
+        if (z - b.len / 2 > WRAP_Z || z + b.len / 2 < WRAP_Z - ROAD_LENGTH) {
+          this.scene.remove(b.parts.root);
+          list.splice(i, 1);
+          this.spareBuildings.push(b);
         }
-        if (near.parts.root.position.z - near.len / 2 > WRAP_Z) {
-          const farEdge = far.parts.root.position.z - far.len / 2;
-          this.restyleRowBuilding(near, side);
-          near.parts.root.position.z = farEdge - near.len / 2;
-        } else if (far.parts.root.position.z + far.len / 2 < WRAP_Z - ROAD_LENGTH) {
-          const nearEdge = near.parts.root.position.z + near.len / 2;
-          this.restyleRowBuilding(far, side);
-          far.parts.root.position.z = nearEdge + far.len / 2;
-        } else break;
       }
+      this.fillRow(list, side);
       const sideName = side === -1 ? "left" : "right";
       // 霧的盡頭之外整棟都是霧色、看不到，不畫省 draw call（街屋排到 190 m，霧 160 m 就全白）
       const fogFar = (this.scene.fog as THREE.Fog).far;
