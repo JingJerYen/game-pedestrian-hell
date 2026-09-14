@@ -373,20 +373,20 @@ export const TUNING = {
   // 分數 = 最遠走到幾公尺（最遠紀錄存在瀏覽器 localStorage）。
   endless: {
     stageLength: 100, // 每幾公尺升一階
-    rampStages: 5, // 幾階爬到天花板（5 階 = 500 m；調小每階跳得更多）
-    spawnIntervalStart: 3.5, // 迎面車生成間隔（秒）：起點比手寫第一關還鬆
-    spawnIntervalEnd: 0.4,
-    speedScaleStart: 0.7, // 車速倍率
-    speedScaleEnd: 1.8,
+    rampStages: 3, // 幾階爬到天花板（3 階 = 300 m；調小每階跳得更多）
+    spawnIntervalStart: 2.5, // 迎面車生成間隔（秒）
+    spawnIntervalEnd: 0.3,
+    speedScaleStart: 0.9, // 車速倍率
+    speedScaleEnd: 2.2,
     obstacleGapMinStart: 12, // 路障間距（越小越密）
-    obstacleGapMinEnd: 4,
+    obstacleGapMinEnd: 3,
     obstacleGapMaxStart: 24,
-    obstacleGapMaxEnd: 9,
+    obstacleGapMaxEnd: 6,
     roadChanceStart: 0.1, // 違停（路邊車道路障）機率
-    roadChanceEnd: 0.5,
+    roadChanceEnd: 0.6,
     turnChanceEnd: 0.9, // 路口右轉機率天花板（起點沿用 intersection.turnChance）
-    bikeIntervalStart: 8, // 人行道腳踏車生成間隔（秒）
-    bikeIntervalEnd: 2.0,
+    bikeIntervalStart: 6, // 人行道腳踏車生成間隔（秒）
+    bikeIntervalEnd: 1.2,
     backdropEveryStages: 1, // 每幾階換一張背景圖（0 = 不換）
     backdrops: [0, 3], // 無盡模式輪用 TUNING.backdrop.sets 的哪幾張（0 起算），照這個順序輪；進場先用第一個
     entryFlavor: "走路環保又健康，但是有點危險...", // 進入無盡模式的橫幅小語
