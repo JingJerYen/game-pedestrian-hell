@@ -99,6 +99,15 @@
 | 三種樣式 | `normal` 綠鋪面＋「人行道」字（現狀）／`asphalt` 跟車道同色、有路緣白線、沒有字／`none` **那側只有車道**：人行道整條消失、建築貼到車道邊、行人走不進去，該側沒有停車格、路障、腳踏車、直向斑馬線。goalSide 指到 none 側時站上路邊車道就算到達 |
 | 設定 | 左右各自設：關卡表 `sidewalkLeft` / `sidewalkRight`；無盡模式兩側固定 normal。執行期配置在 `tuning.ts` 的 `LAYOUT`，各模組用 `hasSidewalk` / `walkMinX` / `buildingLineX` 讀 |
 
+## 2026-09-14 asphalt 人行道＝停車場（與使用者確認）
+
+| 決策 | 結果 |
+|---|---|
+| asphalt 側的路障 | 不走一般路障池（沒有單顆 Gogoro／變電箱），改由 `obstacles.ts` 的 `updateAsphalt` **一段接一段連續鋪停車格**，段與段之間留小空隙，讓停車格佔人行道長度的比例 ≈ `TUNING.parking.asphaltCoverage`（0.8）。格子裡停不停車照 `occupancy`。無頭模擬實測扣掉路口後約 75%（路口兩側各留 1 m、零碎空位塞不下） |
+| 路口 | 一段撞到路口就裁短塞進路口前的空位（後緣不動、只縮前緣；汽車格塞不下改試機車格，`asphaltFitMinStalls`），塞不下才整段挪到路口另一邊 |
+| 開場 | 每關 reset 時先從出發點前方 `asphaltPrefillFrom` 公尺鋪到路障生成點，玩家一出生就看到停車格（一般路障池仍是走到 `obstacleSpawnZ` 公尺後才出現第一個；使用者決定不預鋪） |
+| normal 側 | 不變：仍走路障池，`parking.chance` 只管 normal 側 |
+
 ## 2026-09-12 視角切換（與使用者確認）
 
 | 決策 | 結果 |

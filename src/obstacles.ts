@@ -14,7 +14,7 @@ import { blockedBy, clampScrollBy, type Blocker, type Size3 } from "./collision"
 import type { Intersections } from "./intersections";
 import { makeParkingPavement } from "./skins";
 import { makeVehicleMesh, makePropMesh } from "./vehicleskins";
-import { ROAD_LEFT, BG_RIGHT, WALK_MIN_X, WALK_MAX_X, hasSidewalk } from "./tuning";
+import { ROAD_LEFT, BG_RIGHT, WALK_MIN_X, WALK_MAX_X, LAYOUT } from "./tuning";
 
 interface Obstacle {
   mesh: THREE.Object3D; // 外觀（3D 模型或方塊）；原點＝碰撞箱中心
@@ -32,6 +32,36 @@ interface Pavement {
 const PROP_FALLBACK_COLOR = 0x6b6b70; // 道具模型還沒載好時的色塊色
 const PARKED_CAR_COLORS = [0x9aa3ad, 0x7d8a99, 0xb0a08c];
 
+// 一段停車格路段的規格（先抽好再排程，才能算出跟上一段之間要留多少空隙）
+interface ParkingPlan {
+  kind: "scooter" | "car";
+  stalls: number;
+  len: number; // = stalls × stallDepth
+}
+
+function rollParkingPlan(): ParkingPlan {
+  const t = TUNING.parking;
+  const kind: "scooter" | "car" = Math.random() < t.carChance ? "car" : "scooter";
+  const p = t.types[kind];
+  const stalls = p.stallsMin + Math.floor(Math.random() * (p.stallsMax - p.stallsMin + 1));
+  return { kind, stalls, len: stalls * p.stallDepth };
+}
+
+// asphalt 側：一段長 len 的停車格後面要留多長的空隙（依覆蓋率反推，再隨機浮動）
+function gapAfter(len: number): number {
+  const t = TUNING.parking;
+  const coverage = Math.min(Math.max(t.asphaltCoverage, 0.05), 1);
+  const jitter = 1 + (Math.random() * 2 - 1) * t.asphaltGapJitter;
+  return len * (1 / coverage - 1) * Math.max(jitter, 0);
+}
+
+// asphalt 側連續鋪停車格用：每一側自己的排程狀態
+interface AsphaltSide {
+  col: number;
+  nextAt: number; // 走到第幾公尺鋪下一段
+  plan: ParkingPlan; // 下一段長什麼樣（已抽好）
+}
+
 // 從 tuning.sidewalkProps 依 weight 抽一款道具
 function pickProp(): { name: string; size: Size3 } {
   const entries = Object.entries(TUNING.sidewalkProps);
@@ -47,7 +77,9 @@ function pickProp(): { name: string; size: Size3 } {
 export class Obstacles {
   private readonly list: Obstacle[] = [];
   private readonly pavements: Pavement[] = [];
-  private nextSpawnAt = 10; // 走到第幾公尺會出現下一個路障
+  private nextSpawnAt = 10; // 走到第幾公尺會出現下一個路障（normal 側路障池／路邊違停）
+  // asphalt 側的連續停車格排程（每關 reset 時依 LAYOUT 重建；normal / none 側不在裡面）
+  private asphalt: AsphaltSide[] = [];
 
   constructor(private readonly scene: THREE.Scene) {}
 
@@ -77,22 +109,107 @@ export class Obstacles {
         this.pavements.splice(i, 1);
       }
     }
-    if (maxDist >= this.nextSpawnAt) {
-      // 生成點撞到路口就先跳過，過幾公尺再試（路口範圍內不放路障）
-      if (intersections.nearZone(-TUNING.obstacleSpawnZ, 10)) {
-        this.nextSpawnAt = maxDist + 5;
-        return;
-      }
-      const r = this.spawn(level, occupied);
-      if (!r.ok) {
-        this.nextSpawnAt = maxDist + r.retryAfter; // 生成點有車 / 空隙不夠：等一下再試
-        return;
-      }
-      this.nextSpawnAt =
-        maxDist +
-        r.extraGap +
-        THREE.MathUtils.lerp(level.obstacleGapMin, level.obstacleGapMax, Math.random());
+    this.updatePool(maxDist, level, intersections, occupied);
+    this.updateAsphalt(maxDist, intersections, occupied);
+  }
+
+  // 一般路障池：路邊違停，或 normal 側人行道的單顆路障／停車格路段（依關卡的間距排程）
+  private updatePool(
+    maxDist: number,
+    level: LevelConfig,
+    intersections: Intersections,
+    occupied: (x0: number, x1: number, z0: number, z1: number) => boolean,
+  ): void {
+    if (maxDist < this.nextSpawnAt) return;
+    // 生成點撞到路口就先跳過，過幾公尺再試（路口範圍內不放路障）
+    if (intersections.nearZone(-TUNING.obstacleSpawnZ, 10)) {
+      this.nextSpawnAt = maxDist + 5;
+      return;
     }
+    const r = this.spawn(level, occupied);
+    if (!r.ok) {
+      this.nextSpawnAt = maxDist + r.retryAfter; // 生成點有車 / 空隙不夠：等一下再試
+      return;
+    }
+    this.nextSpawnAt =
+      maxDist +
+      r.extraGap +
+      THREE.MathUtils.lerp(level.obstacleGapMin, level.obstacleGapMax, Math.random());
+  }
+
+  // asphalt 側：停車格一段接一段鋪。每側各自排程，段與段之間的空隙由
+  // TUNING.parking.asphaltCoverage 決定（空隙 = 下一段長度 × (1/覆蓋率 − 1)，再隨機浮動），
+  // 長期下來停車格佔整條人行道的長度比例就會落在覆蓋率附近
+  private updateAsphalt(
+    maxDist: number,
+    intersections: Intersections,
+    occupied: (x0: number, x1: number, z0: number, z1: number) => boolean,
+  ): void {
+    const t = TUNING.parking;
+    const zs = -TUNING.obstacleSpawnZ; // 這段的中心（z 越負越前面）
+    const ixHalf = TUNING.intersection.roadDepth / 2 + t.asphaltIntersectionMargin;
+    for (const a of this.asphalt) {
+      if (maxDist < a.nextAt) continue;
+      let plan = a.plan;
+      const back = zs + plan.len / 2; // 這段的後緣（靠玩家那頭）——裁短時後緣不動、只縮前緣
+      // 跟路口重疊？skipDist = 整段要往前挪多少才會完全過了路口；
+      // fitLen = 後緣不動、只裁短的話最多能留多長（路口在前方才有可能 > 0）
+      let skipDist = 0;
+      let fitLen = Infinity;
+      for (const zc of intersections.centers()) {
+        const overlaps = zc + ixHalf > zs - plan.len / 2 && zc - ixHalf < back;
+        if (!overlaps) continue;
+        skipDist = Math.max(skipDist, back + ixHalf - zc);
+        fitLen = Math.min(fitLen, back - (zc + ixHalf));
+      }
+      let centerZ = zs;
+      if (skipDist > 0) {
+        // 裁短塞進路口前：汽車格塞不下就改試機車格（格子淺，比較塞得進零碎空位）
+        const fitted = this.fitPlan(plan.kind, fitLen) ?? (plan.kind === "car" ? this.fitPlan("scooter", fitLen) : null);
+        if (!fitted) {
+          a.nextAt = maxDist + skipDist; // 塞不下：整段挪到路口另一邊
+          continue;
+        }
+        plan = fitted;
+        centerZ = back - plan.len / 2;
+      }
+      const r = this.spawnParking(a.col, plan, occupied, centerZ);
+      if (!r.ok) {
+        a.nextAt = maxDist + r.retryAfter;
+        continue;
+      }
+      const gap = gapAfter(plan.len);
+      a.plan = rollParkingPlan();
+      // 這段後緣在 maxDist + back 對應的位置；下一段中心 = 後緣 + 空隙 + 下一段前半
+      a.nextAt = maxDist + (back - zs) + gap + a.plan.len / 2;
+    }
+  }
+
+  // 開場預鋪：從出發點前方 asphaltPrefillFrom 公尺起一段接一段鋪到路障生成點，
+  // 之後由 updateAsphalt 接手。不看路口（第一個路口在 firstAt + spawnZ 公尺處，遠在生成點之外；
+  // 而且 main 是先 reset 路障再 reset 路口，此時路口清單還是上一關的）
+  private prefillAsphalt(a: AsphaltSide): void {
+    const t = TUNING;
+    let back = -t.parking.asphaltPrefillFrom; // 下一段的後緣（z）
+    for (;;) {
+      const centerZ = back - a.plan.len / 2;
+      if (centerZ < -t.obstacleSpawnZ) break; // 到生成點了：剩下交給 updateAsphalt
+      const r = this.spawnParking(a.col, a.plan, () => false, centerZ);
+      if (!r.ok) break; // 開場沒車、沒別的路障，理論上不會失敗
+      back = centerZ - a.plan.len / 2 - gapAfter(a.plan.len);
+      a.plan = rollParkingPlan();
+    }
+    // 下一段中心要走到生成點（z = −obstacleSpawnZ）才鋪：算它現在離生成點多遠
+    a.nextAt = Math.max(0, -(back - a.plan.len / 2) - t.obstacleSpawnZ);
+  }
+
+  // 長度 fitLen 的空位最多能鋪幾格 kind 停車格；不到 asphaltFitMinStalls 就回 null
+  private fitPlan(kind: "scooter" | "car", fitLen: number): ParkingPlan | null {
+    const t = TUNING.parking;
+    const p = t.types[kind];
+    const stalls = Math.min(p.stallsMax, Math.floor(fitLen / p.stallDepth));
+    if (stalls < t.asphaltFitMinStalls[kind]) return null;
+    return { kind, stalls, len: stalls * p.stallDepth };
   }
 
   // ok = 生成了，extraGap = 這次額外吃掉的縱深（停車格路段比較長，下一個路障要多讓開一點）；
@@ -117,13 +234,14 @@ export class Obstacles {
       return { ok: true, extraGap: 0 };
     }
     // 人行道：單顆路障，或整段停車格路段（半邊換成停車格鋪面）。
-    // 只挑有人行道的那側；兩側都沒有就這輪不生
+    // 只挑 normal 綠鋪面那側（asphalt 側由 updateAsphalt 自己連續鋪停車格；none 側沒有人行道）；
+    // 兩側都不是 normal 就這輪不生
     const sides: number[] = [];
-    if (hasSidewalk("left")) sides.push(0);
-    if (hasSidewalk("right")) sides.push(RIGHT_SIDEWALK_COL);
+    if (LAYOUT.left === "normal") sides.push(0);
+    if (LAYOUT.right === "normal") sides.push(RIGHT_SIDEWALK_COL);
     if (sides.length === 0) return { ok: false, retryAfter: 4 };
     const col = sides[Math.floor(Math.random() * sides.length)];
-    if (Math.random() < t.parking.chance) return this.spawnParking(col, occupied);
+    if (Math.random() < t.parking.chance) return this.spawnParking(col, rollParkingPlan(), occupied);
     if (Math.random() < t.sidewalkScooterChance) {
       // 路障池：一台亂停在人行道上的 Gogoro——沿路停（只擋半邊，繞得過）或橫停（擋住整條）
       const b = t.parking.types.scooter.blockSize; // x 長 z 窄 = 橫停
@@ -153,8 +271,8 @@ export class Obstacles {
     col: number,
     halfLen: number,
     occupied: (x0: number, x1: number, z0: number, z1: number) => boolean,
+    z = -TUNING.obstacleSpawnZ,
   ): { ok: false; retryAfter: number } | null {
-    const z = -TUNING.obstacleSpawnZ;
     if (this.colOccupied(col, z, halfLen, occupied)) return { ok: false, retryAfter: 1 };
     // 跟現存路障的關係：同一欄不能疊在一起；同一側「人行道 ↔ 違停」要留 passGap
     // （停車格路段很長，以中心點生成時前半段會伸進上一個路障的位置，所以要逐一檢查）
@@ -191,17 +309,14 @@ export class Obstacles {
   // 剩下靠建築那邊仍是走道。每一格獨立擲骰決定有沒有停車，車輛貼齊格子。
   private spawnParking(
     col: number,
+    plan: ParkingPlan,
     occupied: (x0: number, x1: number, z0: number, z1: number) => boolean,
+    centerZ = -TUNING.obstacleSpawnZ, // asphalt 側裁短塞路口前時會往玩家這頭挪
   ): { ok: true; extraGap: number } | { ok: false; retryAfter: number } {
     const t = TUNING;
-    const kind: "scooter" | "car" =
-      Math.random() < t.parking.carChance ? "car" : "scooter";
+    const { kind, stalls, len } = plan;
     const p = t.parking.types[kind];
-    const stalls =
-      p.stallsMin + Math.floor(Math.random() * (p.stallsMax - p.stallsMin + 1));
-    const len = stalls * p.stallDepth;
-    const centerZ = -t.obstacleSpawnZ;
-    const blocked = this.canPlace(col, len / 2, occupied);
+    const blocked = this.canPlace(col, len / 2, occupied, centerZ);
     if (blocked) return blocked;
     // 停車格條貼齊人行道靠馬路的內緣
     const stripX =
@@ -361,5 +476,12 @@ export class Obstacles {
     for (const p of this.pavements) this.scene.remove(p.mesh);
     this.pavements.length = 0;
     this.nextSpawnAt = 10;
+    // 依這關的 LAYOUT 決定哪幾側要連續鋪停車格（main 先設好 LAYOUT 再呼叫 reset）
+    this.asphalt = [];
+    if (LAYOUT.left === "asphalt")
+      this.asphalt.push({ col: 0, nextAt: 0, plan: rollParkingPlan() });
+    if (LAYOUT.right === "asphalt")
+      this.asphalt.push({ col: RIGHT_SIDEWALK_COL, nextAt: 0, plan: rollParkingPlan() });
+    for (const a of this.asphalt) this.prefillAsphalt(a);
   }
 }

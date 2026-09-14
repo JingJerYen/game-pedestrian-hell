@@ -320,8 +320,21 @@ export const TUNING = {
   // ── 停車格路段（人行道「靠馬路那半邊」直接換成停車格鋪面接手，
   //    靠建築那半邊仍是綠色走道；格子裡可能停著車）──
   parking: {
-    chance: 0.95, // 人行道路障事件是「停車格路段」而非單顆路障的機率
+    chance: 0.95, // 【normal 綠鋪面】人行道路障事件是「停車格路段」而非單顆路障的機率
     carChance: 0.35, // 停車格路段是汽車格（而非機車格）的機率——調高會看到滿街汽車格
+    // 【asphalt 柏油人行道】不走上面的路障池：整條幾乎都是停車格。
+    // 停車格路段一段接一段鋪，段與段之間留小空隙，讓「停車格佔整條人行道的長度比例」
+    // 大約等於 asphaltCoverage（0.8 = 八成）。格子裡停不停車還是看下面各 types 的 occupancy。
+    // asphalt 側不會再出現單顆路障（Gogoro、變電箱），只有停車格；路口附近照樣不鋪
+    asphaltCoverage: 0.8,
+    asphaltGapJitter: 0.5, // 空隙長度隨機浮動 ±50%（0 = 每段空隙一樣長）
+    // 一段撞到路口時：先試著把它裁短塞進路口前剩下的空位（至少要剩這麼多格才值得鋪），
+    // 塞不下就整段挪到路口另一邊。路段邊緣離路口（橫向小路）至少留 asphaltIntersectionMargin 公尺
+    asphaltFitMinStalls: { scooter: 3, car: 1 },
+    asphaltIntersectionMargin: 1,
+    // 每關開場先把「出發點前方 asphaltPrefillFrom 公尺 → 路障生成點（obstacleSpawnZ）」這段鋪好，
+    // 玩家一出生就看得到停車格（不然要走到 obstacleSpawnZ 公尺以後才會出現第一段）
+    asphaltPrefillFrom: 8,
     types: {
       // stripWidth 3.4 = 人行道視覺全寬（斷頭式人行道，整段被停車格接管）。
       // 注意：一段的長度 = 格數 × stallDepth；段越長，下一個事件會多讓開
