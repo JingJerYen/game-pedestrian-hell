@@ -310,11 +310,12 @@ function updateCamera(dt: number): void {
     camera.fov = fov;
     camera.updateProjectionMatrix();
   }
-  // 橫向跟著人，但離建築線保持 cameraXMargin（人貼牆時鏡頭不跟進招牌底下）
+  // 橫向跟著人，但離建築線保持一段距離（人貼牆時鏡頭不跟進招牌底下）；直式鏡頭高、要留更多
+  const xMargin = portrait ? t.cameraPortrait.xMargin : t.cameraXMargin;
   const targetX = THREE.MathUtils.clamp(
     player.mesh.position.x,
-    walkMinX() + t.cameraXMargin,
-    walkMaxX() - t.cameraXMargin,
+    walkMinX() + xMargin,
+    walkMaxX() - xMargin,
   );
   cameraX = THREE.MathUtils.damp(cameraX, targetX, t.cameraXDamp, dt);
   camera.position.set(cameraX, height, distance);
