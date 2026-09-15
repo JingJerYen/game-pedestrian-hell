@@ -200,6 +200,14 @@ export const TUNING = {
         "媽，自己一個人要保重...😭"
       ],
     },
+    door: {
+      title: "你被車門打到了 🚪",
+      facts: [
+        "門殺：開車門前先看後方，是駕駛的責任，不是行人的運氣",
+        "荷式開門法：用離門較遠的那隻手開門，身體自然會轉過去看後面",
+        "停在人行道上的車，開門就是開在人行道上",
+      ],
+    },
     bike: {
       title: "你被人行道上的腳踏車撞了 🚲",
       facts: [
@@ -254,6 +262,25 @@ export const TUNING = {
     color: 0xfff1c0, // 光色（暖白）
     bikes: true, // 人行道腳踏車（右側從背後來）也給一片小的
     bikeScale: 0.45, // 腳踏車光暈的長寬比例
+  },
+
+  // ── 門殺：停著的車（停車格、路邊違停）人走近時突然開門 ──
+  // 生成時擲骰決定哪幾台會開門（外觀看不出來）；人走到門前 triggerAhead 公尺內就觸發：
+  // 先開一條縫預告 warnSeconds，再 openSeconds 內甩開；甩門期間打到人 = 死（deathCaptions.door），
+  // 開好之後就是一片路障（擋人、車會閃、腳踏車會停），停 holdSeconds 再關上。門往玩家那一側開。
+  doorKill: {
+    chance: 0.35, // 幾成的停放汽車會開門
+    triggerAhead: 3.5, // 門（鉸鏈）在玩家前方幾公尺內就觸發
+    lateral: 2.2, // 玩家離車側面多遠以內才觸發（太遠開了也沒意義）
+    warnSeconds: 0.4, // 預告：門先開一條縫多久
+    warnAngle: 0.15, // 預告時開幾弧度（約 8°）
+    openSeconds: 0.3, // 甩開花幾秒（這段打到人會死）
+    openAngle: 1.2, // 開到幾弧度（約 70°）
+    holdSeconds: 2.5, // 開著多久
+    closeSeconds: 0.6, // 關上花幾秒
+    doorLength: 0.95, // 門板長（沿車身方向）
+    doorHeight: 1.0, // 門板高
+    hingeZ: 0.55, // 鉸鏈在車身中心往車頭幾公尺（前門）
   },
 
   // ── 後方來車警示（畫面上的紅色「!」＋喇叭聲）──
@@ -346,7 +373,7 @@ export const TUNING = {
     drop: 1.3, // 鏡頭往下壓幾公尺
     closer: 0.55, // 拉近到原距離的幾倍
     roll: 0.18, // 側歪角度（弧度）
-    byCause: { truck: 2.0, car: 1.4, scooter: 1.0, bike: 0.5, timeout: 0 } as Record<string, number>, // 定格與震動的倍率
+    byCause: { truck: 2.0, car: 1.4, scooter: 1.0, bike: 0.5, door: 0.8, timeout: 0 } as Record<string, number>, // 定格與震動的倍率
   },
 
   // ── 開場標題畫面（素材載入期間顯示；點一下開始，順便取得手機播音授權）──

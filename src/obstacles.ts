@@ -10,7 +10,7 @@ import {
   RIGHT_SIDEWALK_COL,
   type LevelConfig,
 } from "./tuning";
-import { blockedBy, clampScrollBy, type Blocker, type Size3 } from "./collision";
+import { aabbHit, blockedBy, clampScrollBy, type Blocker, type Size3 } from "./collision";
 import type { Intersections } from "./intersections";
 import { makeParkingPavement } from "./skins";
 import { makeVehicleMesh, makePropMesh } from "./vehicleskins";
@@ -20,6 +20,22 @@ interface Obstacle {
   mesh: THREE.Object3D; // 外觀（3D 模型或方塊）；原點＝碰撞箱中心
   size: Size3;
   col: number; // 0 / RIGHT_SIDEWALK_COL = 人行道；1 / LAST_ROAD_COL = 路邊車道
+  door?: Door; // 停放汽車：會開門的才有（TUNING.doorKill）
+}
+
+// 門殺的車門：生成時只記「會開門」＋顏色，人走近觸發時才真的長出門板（往玩家那一側）
+interface Door {
+  color: number; // 跟車身同色
+  state: "armed" | "warn" | "opening" | "open" | "closing" | "done"; // armed = 還沒觸發
+  t: number; // 目前狀態進行了幾秒
+  angle: number; // 目前開了幾弧度
+  worldSide: -1 | 1; // 往世界 +x 還是 -x 開（觸發時看玩家在哪側）
+  pivot: THREE.Group | null; // 門板（以鉸鏈為原點，掛在車 mesh 底下）
+}
+
+// 停放的車 mesh 可能整台轉了 180°（rotationY = π）：本地 x/z 跟世界 x/z 同向（+1）或反向（−1）
+function facing(mesh: THREE.Object3D): 1 | -1 {
+  return Math.cos(mesh.rotation.y) < 0 ? -1 : 1;
 }
 
 // 停車格路段的「鋪面」：純裝飾、不擋人（擋人的是格子裡的機車堆，在 list 裡）
@@ -88,11 +104,14 @@ export class Obstacles {
   // 有的話這次不生，過一公尺再試，不然路障會直接砸在車或腳踏車身上
   update(
     dz: number,
+    dt: number,
     maxDist: number,
     level: LevelConfig,
     intersections: Intersections,
     occupied: (x0: number, x1: number, z0: number, z1: number) => boolean,
+    playerPos: THREE.Vector3,
   ): void {
+    this.updateDoors(dt, playerPos);
     for (let i = this.list.length - 1; i >= 0; i--) {
       const o = this.list[i];
       o.mesh.position.z += dz;
@@ -371,7 +390,130 @@ export class Obstacles {
     mesh.position.set(x, size.y / 2, z);
     mesh.rotation.y = rotationY;
     this.scene.add(mesh);
-    this.list.push({ mesh, size, col });
+    // 門殺：擲骰決定這台會不會開門（外觀看不出來）
+    const door: Door | undefined =
+      Math.random() < TUNING.doorKill.chance
+        ? { color, state: "armed", t: 0, angle: 0, worldSide: 1, pivot: null }
+        : undefined;
+    this.list.push({ mesh, size, col, door });
+  }
+
+  // ── 門殺 ──
+
+  // 每幀：還沒觸發的看玩家走近了沒；已觸發的推進動畫（預告 → 甩開 → 開著 → 關上）
+  private updateDoors(dt: number, playerPos: THREE.Vector3): void {
+    const d = TUNING.doorKill;
+    for (const o of this.list) {
+      const door = o.door;
+      if (!door || door.state === "done") continue;
+      const f = facing(o.mesh);
+      const hingeZ = o.mesh.position.z + f * d.hingeZ; // 鉸鏈的世界 z
+      if (door.state === "armed") {
+        const ahead = playerPos.z - hingeZ; // 門在玩家前方幾公尺（正 = 前方）
+        if (ahead < -0.3 || ahead > d.triggerAhead) continue;
+        if (Math.abs(playerPos.x - o.mesh.position.x) > o.size.x / 2 + d.lateral) continue;
+        // 觸發：門往玩家那一側開
+        door.worldSide = playerPos.x >= o.mesh.position.x ? 1 : -1;
+        door.pivot = this.makeDoor(o, door);
+        o.mesh.add(door.pivot);
+        door.state = "warn";
+        door.t = 0;
+        this.doorWarnsThisFrame++;
+        continue;
+      }
+      door.t += dt;
+      if (door.state === "warn") {
+        door.angle = d.warnAngle;
+        if (door.t >= d.warnSeconds) (door.state = "opening"), (door.t = 0);
+      } else if (door.state === "opening") {
+        door.angle = d.warnAngle + (d.openAngle - d.warnAngle) * Math.min(1, door.t / d.openSeconds);
+        if (door.t >= d.openSeconds) (door.state = "open"), (door.t = 0);
+      } else if (door.state === "open") {
+        door.angle = d.openAngle;
+        if (door.t >= d.holdSeconds) (door.state = "closing"), (door.t = 0);
+      } else if (door.state === "closing") {
+        door.angle = d.openAngle * (1 - Math.min(1, door.t / d.closeSeconds));
+        if (door.t >= d.closeSeconds) {
+          door.state = "done";
+          if (door.pivot) o.mesh.remove(door.pivot);
+          door.pivot = null;
+        }
+      }
+      // 本地 x 方向 = 世界方向 × facing；門板在鉸鏈的 −z 側，往 +x 開要轉負角度
+      if (door.pivot) door.pivot.rotation.y = -(door.worldSide * f) * door.angle;
+    }
+  }
+
+  // 門板：一片跟車身同色的薄板，以鉸鏈（車側面、前門位置）為原點，關著時沿車身往後
+  private makeDoor(o: Obstacle, door: Door): THREE.Group {
+    const d = TUNING.doorKill;
+    const pivot = new THREE.Group();
+    const localSide = door.worldSide * facing(o.mesh);
+    pivot.position.set(localSide * (o.size.x / 2), -o.size.y / 2 + 0.25 + d.doorHeight / 2, d.hingeZ);
+    const geo = new THREE.BoxGeometry(0.06, d.doorHeight, d.doorLength);
+    geo.translate(0, 0, -d.doorLength / 2); // 板子從鉸鏈往 −z 延伸
+    const panel = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: door.color }));
+    pivot.add(panel);
+    // 車窗：上半段一塊深色
+    const win = new THREE.Mesh(
+      new THREE.BoxGeometry(0.07, d.doorHeight * 0.4, d.doorLength * 0.8),
+      new THREE.MeshLambertMaterial({ color: 0x2a3340 }),
+    );
+    win.position.set(0, d.doorHeight * 0.25, -d.doorLength / 2);
+    pivot.add(win);
+    return pivot;
+  }
+
+  // 目前開著（含甩開、關上中）的門在世界裡佔的方框（擋玩家、車要閃、腳踏車要停）
+  private doorBlockers(): Blocker[] {
+    const d = TUNING.doorKill;
+    const out: Blocker[] = [];
+    for (const o of this.list) {
+      const door = o.door;
+      if (!door || door.state === "armed" || door.state === "done") continue;
+      const f = facing(o.mesh);
+      const sin = Math.sin(door.angle);
+      const cos = Math.cos(door.angle);
+      const reach = d.doorLength * sin; // 伸出車側多遠
+      const hingeZ = o.mesh.position.z + f * d.hingeZ;
+      out.push({
+        pos: {
+          x: o.mesh.position.x + door.worldSide * (o.size.x / 2 + reach / 2),
+          y: o.mesh.position.y,
+          z: hingeZ - f * (d.doorLength * cos) / 2,
+        },
+        size: { x: Math.max(0.1, reach), y: d.doorHeight, z: d.doorLength * cos + 0.06 },
+      });
+    }
+    return out;
+  }
+
+  // 甩門那一瞬間有打到玩家嗎（只算 opening 狀態；開好之後只是路障）
+  doorHitsPlayer(pos: THREE.Vector3, size: Size3): boolean {
+    const d = TUNING.doorKill;
+    for (const o of this.list) {
+      const door = o.door;
+      if (!door || door.state !== "opening") continue;
+      const f = facing(o.mesh);
+      const reach = d.doorLength * Math.sin(door.angle);
+      const hingeZ = o.mesh.position.z + f * d.hingeZ;
+      const box = {
+        x: o.mesh.position.x + door.worldSide * (o.size.x / 2 + reach / 2),
+        y: o.mesh.position.y,
+        z: hingeZ - f * (d.doorLength * Math.cos(door.angle)) / 2,
+      };
+      const bsize = { x: Math.max(0.1, reach), y: d.doorHeight, z: d.doorLength * Math.cos(door.angle) + 0.06 };
+      if (aabbHit(pos, size, box, bsize, 1)) return true;
+    }
+    return false;
+  }
+
+  // 有門正在預告（開一條縫）：main 用來播一聲「咔」；回傳這一幀剛進入預告的數量
+  private doorWarnsThisFrame = 0;
+  takeDoorWarns(): number {
+    const n = this.doorWarnsThisFrame;
+    this.doorWarnsThisFrame = 0;
+    return n;
   }
 
   // 停放的機車：模型車頭朝 +Z，rotationY = ±90° 橫停（碰撞箱 x 長 z 窄）、0/180° 沿路停
@@ -427,7 +569,9 @@ export class Obstacles {
 
   // 路障當成「擋住玩家的方塊」清單（演算法在 collision.ts，跟騎樓柱子共用）
   private blockers(): Blocker[] {
-    return this.list.map((o) => ({ pos: o.mesh.position, size: o.size }));
+    const out: Blocker[] = this.list.map((o) => ({ pos: o.mesh.position, size: o.size }));
+    out.push(...this.doorBlockers()); // 開著的車門也擋人
+    return out;
   }
 
   // 車輛避讓用：x 這條線上、「行進方向」前方 range 公尺內有沒有路障。
@@ -443,12 +587,16 @@ export class Obstacles {
     range: number,
     travelDir: 1 | -1,
   ): boolean {
-    return this.list.some((o) => {
-      if (Math.abs(o.mesh.position.x - x) >= halfWidth + o.size.x / 2) return false;
-      const centerAhead = (o.mesh.position.z - z) * travelDir;
-      const half = o.size.z / 2;
+    const test = (px: number, pz: number, size: Size3): boolean => {
+      if (Math.abs(px - x) >= halfWidth + size.x / 2) return false;
+      const centerAhead = (pz - z) * travelDir;
+      const half = size.z / 2;
       return centerAhead + half > -2 && centerAhead - half < range;
-    });
+    };
+    return (
+      this.list.some((o) => test(o.mesh.position.x, o.mesh.position.z, o.size)) ||
+      this.doorBlockers().some((b) => test(b.pos.x, b.pos.z, b.size)) // 開著的車門：車要閃、腳踏車要停
+    );
   }
 
   // 玩家想橫移到的位置會不會撞進路障（同樣貼齊視覺）

@@ -492,9 +492,10 @@ renderer.setAnimationLoop(() => {
     tp = profTake("dest", tp);
     world.update(dz, intersections.centers(), destination.zone, obstacles.parkingZones());
     tp = profTake("world", tp);
-    obstacles.update(dz, maxDistance, lv, intersections, (x0, x1, z0, z1) =>
-      traffic.anyVehicleIn(x0, x1, z0, z1),
+    obstacles.update(dz, dt, maxDistance, lv, intersections, (x0, x1, z0, z1) =>
+      traffic.anyVehicleIn(x0, x1, z0, z1), player.mesh.position,
     ); // 生成點有車就不生（不然路障會砸在車上）
+    if (obstacles.takeDoorWarns() > 0) sfx.play("bump"); // 門殺預告：車門開一條縫的「咔」
     tp = profTake("obs", tp);
     traffic.update(dt, dz, obstacles, lv, intersections);
     tp = profTake("traffic", tp);
@@ -538,11 +539,14 @@ renderer.setAnimationLoop(() => {
         ? px < (hasSidewalk("left") ? ROAD_LEFT : ROAD_LEFT + TUNING.laneWidth)
         : px > (hasSidewalk("right") ? BG_RIGHT : BG_RIGHT - TUNING.laneWidth));
     const hitBy = traffic.hitsPlayer(player);
+    const doorHit = obstacles.doorHitsPlayer(player.mesh.position, player.size); // 門殺：甩門打到
     if (reached && sideOk) {
       // 過關（無盡模式 goalDistance 是 Infinity，永遠不會到這裡）
       clearLevel();
     } else if (hitBy) {
       failLevel(hitBy); // 依兇手車種顯示對應的死亡字幕
+    } else if (doorHit) {
+      failLevel("door");
     } else if (timeLeft <= 0) {
       failLevel("timeout"); // 無盡模式 timeLeft 是 Infinity，不會超時
     }
