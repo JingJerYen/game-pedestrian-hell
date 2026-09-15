@@ -17,6 +17,7 @@ import { Destination } from "./destination";
 import { TouchControls } from "./touch";
 import { ROAD_LEFT, BG_RIGHT, type DeathCause } from "./tuning";
 import { Hud } from "./hud";
+import { buildShareText, shareUrl, readChallenge, shareResult } from "./share";
 import { DebugOverlay } from "./debug";
 import { buildingModelsReady, makeTrafficLight, makeVehicleSignal } from "./skins";
 import { vehicleModelsReady, allVehiclePrototypes } from "./vehicleskins";
@@ -211,7 +212,8 @@ function showTitle(): void {
   titleReady = false;
   loadWait = 0;
   const controls = "ontouchstart" in window ? TUNING.title.controlsTouch : TUNING.title.controlsKeyboard;
-  hud.showTitle(TUNING.title.name, controls, bestDistance);
+  const challenge = readChallenge(); // 從朋友的分享連結進來的話多一行挑戰
+  hud.showTitle(TUNING.title.name, controls, bestDistance, challenge ? `朋友走了 ${challenge} m，你能走多遠？` : "");
 }
 
 // 開場預熱（素材到齊後、橫幅還在時做一次）：把每一款會出現的東西各放一份進場景，
@@ -262,6 +264,7 @@ function failLevel(cause: DeathCause): void {
     const record = saveBest(walked);
     sub = `你走了 ${walked} m` + (record ? "　🏆 新紀錄！" : `　（最遠紀錄 ${Math.floor(bestDistance)} m）`);
     prompt = "按任意鍵再走一次";
+    sharePayload = { text: buildShareText(TUNING.title.name, walked, caption.title), url: shareUrl(walked) };
   } else {
     hearts--;
     sub = hearts > 0 ? `剩 ${hearts} 條命` : "命用完了……";
@@ -269,6 +272,7 @@ function failLevel(cause: DeathCause): void {
   }
   const showFail = () => {
     resultAt = performance.now();
+    hud.setShareVisible(isEndless()); // 只有無盡模式的結算有分享鈕
     hud.showFail(caption.title, pickFrom(caption.facts), sub, prompt, TUNING.resultHoldSeconds * 1000);
   };
   hitMult = TUNING.hitFx.byCause[cause] ?? 1;
@@ -282,6 +286,14 @@ function failLevel(cause: DeathCause): void {
     showFail();
   }
 }
+
+// 無盡模式結算的分享（share.ts）：這次要分享的文字與網址，failLevel 時填好
+let sharePayload: { text: string; url: string } | null = null;
+hud.bindShare(async () => {
+  if (!sharePayload) return;
+  const r = await shareResult(sharePayload.text, sharePayload.url);
+  hud.setShareLabel(r === "copied" ? "已複製，貼給朋友吧" : r === "failed" ? "複製失敗" : "分享成績");
+});
 
 // 結算畫面的「按任意鍵」：鍵盤和觸控（點螢幕）都走這裡
 function tryAdvance(): void {

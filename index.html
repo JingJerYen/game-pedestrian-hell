@@ -191,6 +191,27 @@
       #title-best:empty {
         display: none;
       }
+      /* 從朋友的分享連結進來：標題畫面多一行挑戰 */
+      #title-challenge {
+        font-size: 20px;
+        color: #ffd97a;
+      }
+      #title-challenge:empty {
+        display: none;
+      }
+      /* 無盡模式結算的分享鈕（hud.ts setShareVisible 控制顯示） */
+      #fail-share {
+        margin-top: 10px;
+        padding: 10px 22px;
+        border: 2px solid rgba(255, 255, 255, 0.75);
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.35);
+        color: #fff;
+        font-size: 17px;
+        font-weight: 700;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
       #hud.hidden {
         display: none;
       }
@@ -313,6 +334,7 @@
       <div id="title-bar"><div id="title-bar-fill"></div></div>
       <p id="title-prompt"></p>
       <p id="title-best"></p>
+      <p id="title-challenge"></p>
     </div>
     <div id="banner" class="overlay">
       <h1 id="banner-title"></h1>
@@ -326,6 +348,7 @@
       <p id="fail-flavor"></p>
       <p id="fail-sub"></p>
       <p id="fail-prompt"></p>
+      <button id="fail-share" type="button" hidden>分享成績</button>
     </div>
     <!-- 抵達畫面（文字由 hud.ts 的 showClear 塞入） -->
     <div id="win" class="overlay">

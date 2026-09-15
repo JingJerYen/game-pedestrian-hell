@@ -25,6 +25,8 @@ export class Hud {
   private readonly titleBarFill = el("title-bar-fill");
   private readonly titlePrompt = el("title-prompt");
   private readonly titleBest = el("title-best");
+  private readonly titleChallenge = el("title-challenge");
+  private readonly failShare = el("fail-share") as HTMLButtonElement;
   private readonly banner = el("banner");
   private readonly bannerTitle = el("banner-title");
   private readonly bannerFlavor = el("banner-flavor");
@@ -89,10 +91,27 @@ export class Hud {
     this.warn.className = `show${w.side < 0 ? " left" : w.side > 0 ? " right" : ""}${w.seconds < 1 ? " urgent" : ""}`;
   }
 
-  // 開場標題畫面：遊戲名、操作說明（每行一條）、最遠紀錄（0 = 不顯示）
-  showTitle(name: string, controls: readonly string[], best: number): void {
+  // 無盡模式結算的分享鈕：按了呼叫 onClick（分享邏輯在 share.ts）；setShareVisible 決定顯不顯示
+  bindShare(onClick: () => void): void {
+    this.failShare.addEventListener("click", (e) => {
+      e.preventDefault();
+      onClick();
+      this.failShare.blur(); // 焦點還給遊戲，不然按 Enter 會再按到按鈕
+    });
+  }
+  setShareVisible(on: boolean): void {
+    this.failShare.hidden = !on;
+    this.failShare.textContent = "分享成績";
+  }
+  setShareLabel(text: string): void {
+    this.failShare.textContent = text;
+  }
+
+  // 開場標題畫面：遊戲名、操作說明（每行一條）、最遠紀錄（0 = 不顯示）、挑戰一行（空字串 = 不顯示）
+  showTitle(name: string, controls: readonly string[], best: number, challenge = ""): void {
     this.hideOverlays(); // 開遊戲時 startLevel 已經把第 1 關橫幅打開了，標題期間先藏起來
     this.titleName.textContent = name;
+    this.titleChallenge.textContent = challenge;
     this.titleControls.textContent = controls.join("\n");
     this.titleBest.textContent = best > 0 ? `最遠紀錄 ${Math.floor(best)} m` : "";
     this.setTitleProgress(0, 1, false);
