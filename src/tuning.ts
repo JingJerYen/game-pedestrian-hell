@@ -269,7 +269,7 @@ export const TUNING = {
   // 先開一條縫預告 warnSeconds，再 openSeconds 內甩開；甩門期間打到人 = 死（deathCaptions.door），
   // 開好之後就是一片路障（擋人、車會閃、腳踏車會停），停 holdSeconds 再關上。門往玩家那一側開。
   doorKill: {
-    chance: 0.35, // 幾成的停放汽車會開門
+    chance: 0.5, // 幾成的停放汽車會開門
     triggerAhead: 3.5, // 門（鉸鏈）在玩家前方幾公尺內就觸發
     lateral: 2.2, // 玩家離車側面多遠以內才觸發（太遠開了也沒意義）
     warnSeconds: 0.4, // 預告：門先開一條縫多久

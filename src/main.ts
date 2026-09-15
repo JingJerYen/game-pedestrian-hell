@@ -621,6 +621,7 @@ renderer.setAnimationLoop(() => {
       `spawnInterval ${lv.spawnInterval.toFixed(2)}s  speedScale ${lv.speedScale.toFixed(2)}  gap ${lv.obstacleGapMin.toFixed(1)}~${lv.obstacleGapMax.toFixed(1)}  road ${lv.obstacleRoadChance.toFixed(2)}  turn ${(lv.turnChance ?? TUNING.intersection.turnChance).toFixed(2)}  bike ${(lv.bikeInterval ?? 0).toFixed(1)}s`,
       `backdrop ${world.backdropInfo}  (按 2 切換)`,
       `邏輯分項 ms: 路口 ${prof.ix.toFixed(1)}  目的地 ${prof.dest.toFixed(1)}  世界 ${prof.world.toFixed(1)}  路障 ${prof.obs.toFixed(1)}  車流 ${prof.traffic.toFixed(1)}  玩家 ${prof.player.toFixed(1)}  來車警示 ${prof.warn.toFixed(2)}`,
+      obstacles.doorInfo,
       `draw calls ${renderer.info.render.calls}  triangles ${renderer.info.render.triangles}  textures ${renderer.info.memory.textures}  geometries ${renderer.info.memory.geometries}`,
       `cars ${c.total} (turning ${c.turning})  bikes ${c.bikes} (in lane ${c.bikesInLane}, stopped ${c.bikesStopped}, clipping ${c.bikeClips})  obstacles ${obstacles.count}  intersections ${intersections.count}`,
     ].join("\n");

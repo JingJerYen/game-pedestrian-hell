@@ -387,6 +387,7 @@ export class Obstacles {
     const color =
       PARKED_CAR_COLORS[Math.floor(Math.random() * PARKED_CAR_COLORS.length)];
     const mesh = makeVehicleMesh("car", color);
+    mesh.userData.parkedCar = true;
     mesh.position.set(x, size.y / 2, z);
     mesh.rotation.y = rotationY;
     this.scene.add(mesh);
@@ -506,6 +507,19 @@ export class Obstacles {
       if (aabbHit(pos, size, box, bsize, 1)) return true;
     }
     return false;
+  }
+
+  // debug overlay 用：停放汽車幾台、其中會開門的幾台、目前開著的幾扇
+  get doorInfo(): string {
+    let cars = 0, armed = 0, open = 0, done = 0;
+    for (const o of this.list) {
+      if (o.mesh.userData.parkedCar) cars++;
+      if (!o.door) continue;
+      if (o.door.state === "armed") armed++;
+      else if (o.door.state === "done") done++;
+      else open++;
+    }
+    return `parked cars ${cars} (door armed ${armed}, open ${open}, done ${done})`;
   }
 
   // 有門正在預告（開一條縫）：main 用來播一聲「咔」；回傳這一幀剛進入預告的數量
