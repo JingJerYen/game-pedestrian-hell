@@ -141,6 +141,12 @@
       #title {
         background: rgba(10, 12, 20, 0.62);
         gap: 10px;
+        transition: background 1.2s ease-out;
+      }
+      /* 素材還在載：不透明底，蓋住後面的街屋佔位色塊；到齊後淡成半透明，場景浮現 */
+      #title.loading {
+        background: #10131a;
+        transition: none;
       }
       #title h1 {
         font-size: 64px;

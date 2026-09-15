@@ -132,6 +132,7 @@ export class Hud {
   }
   // 載入進度：done/total 組素材；ready = 全部到齊（或等太久不等了），提示換成「點一下開始」並閃
   setTitleProgress(done: number, total: number, ready: boolean): void {
+    this.title.classList.toggle("loading", !ready); // 沒到齊 = 不透明底（佔位色塊看不到）
     this.titleBarFill.style.width = `${Math.round((ready ? 1 : done / total) * 100)}%`;
     this.titlePrompt.textContent = ready ? "點一下畫面或按任意鍵開始" : `素材載入中 ${done}/${total}`;
     this.titlePrompt.classList.toggle("ready", ready);
