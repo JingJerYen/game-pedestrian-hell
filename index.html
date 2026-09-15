@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
-    <title>台灣行人 taiwan-ped</title>
+    <title>我們的賽車場</title>
     <style>
       html,
       body {
@@ -137,6 +137,68 @@
       #banner {
         background: rgba(0, 0, 0, 0.4);
       }
+      /* 開場標題畫面（素材載入中顯示；文字由 hud.ts showTitle 塞入） */
+      #title {
+        background: rgba(10, 12, 20, 0.62);
+        gap: 10px;
+      }
+      #title h1 {
+        font-size: 64px;
+        letter-spacing: 6px;
+        color: #ffd97a;
+        margin-bottom: 14px;
+      }
+      #title-controls {
+        font-size: 18px;
+        line-height: 1.7;
+        color: #c9d1dc;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 10px;
+        padding: 10px 26px;
+        white-space: pre-line;
+      }
+      #title-bar {
+        width: min(320px, 70vw);
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.18);
+        overflow: hidden;
+        margin-top: 18px;
+      }
+      #title-bar > div {
+        height: 100%;
+        width: 0;
+        background: #ffd97a;
+        transition: width 0.3s;
+      }
+      #title-prompt {
+        font-size: 20px;
+        color: #fff;
+        min-height: 1.4em;
+      }
+      #title-prompt.ready {
+        animation: title-blink 1.1s steps(1) infinite;
+      }
+      @keyframes title-blink {
+        50% {
+          opacity: 0.25;
+        }
+      }
+      #title-best {
+        font-size: 16px;
+        color: #9aa4b2;
+      }
+      #title-best:empty {
+        display: none;
+      }
+      #hud.hidden {
+        display: none;
+      }
+      @media (max-width: 600px) {
+        #title h1 {
+          font-size: 44px;
+        }
+      }
       /* 素材還在載：橫幅改成不透明，後面的佔位色塊看不到 */
       #banner.loading {
         background: #1a1d22;
@@ -244,6 +306,13 @@
       <div class="row" id="goal"></div>
       <div class="row" id="progress"></div>
       <div class="row" id="timer"></div>
+    </div>
+    <div id="title" class="overlay">
+      <h1 id="title-name"></h1>
+      <p id="title-controls"></p>
+      <div id="title-bar"><div id="title-bar-fill"></div></div>
+      <p id="title-prompt"></p>
+      <p id="title-best"></p>
     </div>
     <div id="banner" class="overlay">
       <h1 id="banner-title"></h1>

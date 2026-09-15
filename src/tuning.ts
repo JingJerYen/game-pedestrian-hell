@@ -299,6 +299,13 @@ export const TUNING = {
     byCause: { truck: 2.0, car: 1.4, scooter: 1.0, bike: 0.5, timeout: 0 } as Record<string, number>, // 定格與震動的倍率
   },
 
+  // ── 開場標題畫面（素材載入期間顯示；點一下開始，順便取得手機播音授權）──
+  title: {
+    name: "我們的賽車場",
+    controlsKeyboard: ["↑ 前進　↓ 後退", "← → 橫移", "或滑鼠按住畫面拖曳"],
+    controlsTouch: ["按住畫面拖曳移動", "推越遠走越快"],
+  },
+
   // ── 結算畫面 ──
   resultHoldSeconds: 2.5, // 失敗/抵達畫面至少停留幾秒才接受按鍵（期間不顯示「按任意鍵」）
   clearSeconds: 6, // 抵達畫面停留幾秒後自動進下一關（按鍵可提早，但要先停滿 resultHoldSeconds）

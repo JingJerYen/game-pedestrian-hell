@@ -17,6 +17,14 @@ export class Hud {
   private readonly warn = el("warn");
   private readonly toast = el("toast");
   private warnKey = ""; // 上次顯示的狀態，沒變就不動 DOM
+  private readonly hud = el("hud");
+  private readonly hint = el("hint");
+  private readonly title = el("title");
+  private readonly titleName = el("title-name");
+  private readonly titleControls = el("title-controls");
+  private readonly titleBarFill = el("title-bar-fill");
+  private readonly titlePrompt = el("title-prompt");
+  private readonly titleBest = el("title-best");
   private readonly banner = el("banner");
   private readonly bannerTitle = el("banner-title");
   private readonly bannerFlavor = el("banner-flavor");
@@ -79,6 +87,29 @@ export class Hud {
     }
     this.warn.textContent = w.side < 0 ? "◀ !" : w.side > 0 ? "! ▶" : "!";
     this.warn.className = `show${w.side < 0 ? " left" : w.side > 0 ? " right" : ""}${w.seconds < 1 ? " urgent" : ""}`;
+  }
+
+  // 開場標題畫面：遊戲名、操作說明（每行一條）、最遠紀錄（0 = 不顯示）
+  showTitle(name: string, controls: readonly string[], best: number): void {
+    this.hideOverlays(); // 開遊戲時 startLevel 已經把第 1 關橫幅打開了，標題期間先藏起來
+    this.titleName.textContent = name;
+    this.titleControls.textContent = controls.join("\n");
+    this.titleBest.textContent = best > 0 ? `最遠紀錄 ${Math.floor(best)} m` : "";
+    this.setTitleProgress(0, 1, false);
+    this.title.classList.add("show");
+    this.hud.classList.add("hidden"); // 標題畫面不顯示狀態列
+    this.hint.hidden = true; // 底下那行操作提示跟標題框重複，先藏
+  }
+  // 載入進度：done/total 組素材；ready = 全部到齊（或等太久不等了），提示換成「點一下開始」並閃
+  setTitleProgress(done: number, total: number, ready: boolean): void {
+    this.titleBarFill.style.width = `${Math.round((ready ? 1 : done / total) * 100)}%`;
+    this.titlePrompt.textContent = ready ? "點一下畫面或按任意鍵開始" : `素材載入中 ${done}/${total}`;
+    this.titlePrompt.classList.toggle("ready", ready);
+  }
+  hideTitle(): void {
+    this.title.classList.remove("show");
+    this.hud.classList.remove("hidden");
+    this.hint.hidden = false;
   }
 
   // 開場素材還沒載完：橫幅變不透明並顯示「載入中」；載完呼叫 setLoading(false) 恢復

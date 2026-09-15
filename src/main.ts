@@ -1,5 +1,5 @@
 // 進入點：組裝所有模組、跑遊戲迴圈、管理關卡狀態機。
-// 狀態流：levelStart（橫幅，自動開始）→ running →
+// 狀態流：title（標題畫面，素材載入中；點一下開始，只有開遊戲時一次）→ levelStart（橫幅，自動開始）→ running →
 //   過關 → clear（抵達畫面，停 clearSeconds 秒或按鍵）→ 下一關 levelStart（手寫關卡全過 → 無盡模式）
 //   失敗（被撞/超時）→ fail（扣一❤）→ 按鍵重來本關；❤用完 → 按鍵回第一關
 // 無盡模式（levelIndex === LEVELS.length）：沒終點沒時限、一條命，難度隨距離爬（levelgen.ts）；
@@ -85,7 +85,8 @@ window.addEventListener("keyup", (e) => {
 
 // ── 關卡狀態 ──
 // （沒有「全破」狀態：手動關卡表走完就接無盡模式，見 levelgen.ts）
-let state: "levelStart" | "running" | "clear" | "fail" = "levelStart";
+let state: "title" | "levelStart" | "running" | "clear" | "fail" = "title";
+let titleReady = false; // 標題畫面：素材到齊（或等太久）了，可以點開始
 let levelIndex = 0;
 const ENDLESS_INDEX = LEVELS.length; // 手寫關卡之後就是無盡模式（只有這一個 index）
 function isEndless(): boolean {
@@ -199,6 +200,19 @@ function advanceLevel(): void {
 function assetsReady(form: PlayerForm): boolean {
   return buildingModelsReady() && vehicleModelsReady() && charactersReady(form);
 }
+// 標題畫面的進度條用：三組素材到了幾組
+function assetsLoaded(form: PlayerForm): number {
+  return [buildingModelsReady(), vehicleModelsReady(), charactersReady(form)].filter(Boolean).length;
+}
+
+// 標題畫面（只在開遊戲時一次）：後面是還在載入的 3D 場景，素材到齊後點一下進第 1 關
+function showTitle(): void {
+  state = "title";
+  titleReady = false;
+  loadWait = 0;
+  const controls = "ontouchstart" in window ? TUNING.title.controlsTouch : TUNING.title.controlsKeyboard;
+  hud.showTitle(TUNING.title.name, controls, bestDistance);
+}
 
 // 開場預熱（素材到齊後、橫幅還在時做一次）：把每一款會出現的東西各放一份進場景，
 // 叫 renderer 先編譯所有 shader、把所有貼圖上傳到顯示卡，再拿掉。
@@ -271,6 +285,14 @@ function failLevel(cause: DeathCause): void {
 
 // 結算畫面的「按任意鍵」：鍵盤和觸控（點螢幕）都走這裡
 function tryAdvance(): void {
+  if (state === "title") {
+    // 標題畫面：素材到齊就能開始，不用等結算畫面那個停留時間
+    if (titleReady) {
+      hud.hideTitle();
+      startLevel(0);
+    }
+    return;
+  }
   if (pendingFail) return; // 撞擊效果還在播、失敗畫面還沒出來
   // 停留滿 resultHoldSeconds 才接受，避免玩家還在狂按方向鍵就跳過了
   if (performance.now() - resultAt < TUNING.resultHoldSeconds * 1000) return;
@@ -376,7 +398,19 @@ renderer.setAnimationLoop(() => {
   const lv = level();
   let animDt = dt; // 人物動畫用的 dt（撞擊定格／慢動作時會變小）
 
-  if (state === "levelStart") {
+  if (state === "title") {
+    // 標題畫面：等素材、更新進度條；到齊就先把街屋換成模型、預熱 shader，玩家點開始時不會頓
+    loadWait += dt;
+    const form = LEVELS[0].playerForm;
+    const done = assetsLoaded(form);
+    const ready = done === 3 || loadWait > TUNING.loadWaitMax;
+    if (ready) {
+      world.applyBuildingModels();
+      warmUp(form);
+    }
+    if (ready !== titleReady || !ready) hud.setTitleProgress(done, 3, ready);
+    titleReady = ready;
+  } else if (state === "levelStart") {
     loadWait += dt;
     const ready = assetsReady(lv.playerForm) || loadWait > TUNING.loadWaitMax;
     hud.setLoading(!ready);
@@ -550,4 +584,6 @@ renderer.setAnimationLoop(() => {
   debug.endFrame(tRender0); // 畫面提交（three.js 送 draw call 給瀏覽器的 CPU 時間；GPU 實際畫圖不算在內）
 });
 
+// 開遊戲：先把第 1 關的世界擺好（背景、人行道），再蓋上標題畫面
 startLevel(0);
+showTitle();
