@@ -302,7 +302,7 @@ export const TUNING = {
   // ── 結算畫面 ──
   resultHoldSeconds: 2.5, // 失敗/抵達畫面至少停留幾秒才接受按鍵（期間不顯示「按任意鍵」）
   clearSeconds: 6, // 抵達畫面停留幾秒後自動進下一關（按鍵可提早，但要先停滿 resultHoldSeconds）
-  bannerSeconds: 2, // 每關開場橫幅停幾秒自動開始
+  bannerSeconds: 2.5, // 每關開場橫幅停幾秒自動開始
 
   // ── 靜止路障（擋路不致死；「多密、多常違停」由下面的關卡表決定）──
   // 人行道單顆路障池：一台停放的 Gogoro（沿路停或橫停），或 sidewalkProps 裡的道具模型（依 weight 抽）
