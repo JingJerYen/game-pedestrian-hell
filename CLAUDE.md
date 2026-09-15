@@ -30,6 +30,7 @@
 | `src/skins.ts` | 世界裝飾的外觀 factory 集中處——換素材改這裡 |
 | `scripts/shophouse/` | 街屋產生器（不進遊戲）：specs.ts 規格表 → `npm run export:buildings` 出 GLB，PNG 以外部檔案掛上；walltex.py 畫牆面紋理 |
 | `src/collision.ts` | AABB 判定 |
+| `src/sfx.ts` | 音效：Web Audio，聲音預設用程式合成（零檔案），tuning 可改成掛音檔；M 鍵全開/全關 |
 | `src/hud.ts` | HUD 狀態列與橫幅/失敗/通關畫面（DOM overlay，版面在 index.html） |
 | `src/debug.ts` | 開發用 overlay（` 鍵開關），玩家不知道也不影響遊戲 |
 

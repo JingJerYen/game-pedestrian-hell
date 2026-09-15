@@ -19,6 +19,7 @@ import { ROAD_LEFT, BG_RIGHT, type DeathCause } from "./tuning";
 import { Hud } from "./hud";
 import { buildShareText, shareUrl, readChallenge, shareResult } from "./share";
 import { DebugOverlay } from "./debug";
+import { sfx } from "./sfx";
 import { buildingModelsReady, makeTrafficLight, makeVehicleSignal } from "./skins";
 import { vehicleModelsReady, allVehiclePrototypes } from "./vehicleskins";
 import { charactersReady, makeCharacterRig } from "./charskins";
@@ -65,7 +66,18 @@ window.addEventListener("keydown", (e) => {
     player.setForm(FORM_CYCLE[next]);
   } else if (e.key === "2") world.nextBackdrop();
   else if (e.key === "3") startLevel((levelIndex + 1) % (LEVELS.length + 1)); // LEVELS.length 就是無盡模式
+  // M = 音效全開/全關（這個不是測試熱鍵，是給玩家的）
+  else if (e.key === "m" || e.key === "M") toggleSound();
 });
+
+// 音效全開/全關：M 鍵與右上角的按鈕共用（手機沒有鍵盤，只能按按鈕）。選擇記在瀏覽器
+function toggleSound(): void {
+  const muted = sfx.toggleMute();
+  hud.setMuted(muted);
+  hud.showToast(muted ? "🔇 音效關閉" : "🔊 音效開啟");
+}
+hud.bindSoundButton(toggleSound);
+hud.setMuted(sfx.isMuted); // 上次關掉的話，一開遊戲按鈕就是靜音圖示
 
 // 按住 ↑↓←→（或 WASD）移動（用 keydown/keyup 追蹤「現在按著哪些鍵」）
 const held = new Set<string>();
@@ -145,6 +157,7 @@ function startLevel(index: number): void {
   intersections.reset();
   destination.reset();
   world.resetSidewalkMarks();
+  sfx.resetLevel(); // 腳步累積、倒數嗶聲歸零
   // 背景：手寫關卡照關卡表（沒填就依關數輪換）；無盡模式用 endless.backdrops 的第一張
   world.setBackdrop(isEndless() ? TUNING.endless.backdrops[0] : (lv.backdrop ?? index));
   world.applySidewalks(); // 依 LAYOUT 換鋪面、挪建築
@@ -189,6 +202,7 @@ function clearLevel(): void {
   state = "clear";
   clearTimer = TUNING.clearSeconds;
   resultAt = performance.now();
+  sfx.play("clear");
   hud.showClear(`到了！${lv.destination ?? "終點"}`, pickFrom(TUNING.clearFlavors), TUNING.resultHoldSeconds * 1000);
 }
 
@@ -254,6 +268,8 @@ let pendingFail: (() => void) | null = null; // 慢動作結束要做的事（�
 
 function failLevel(cause: DeathCause): void {
   const caption = TUNING.deathCaptions[cause];
+  sfx.setAmbient(false, true); // 先把街道底噪瞬間收掉，撞擊聲才突出（畫面也同時定格）
+  sfx.play(cause === "timeout" ? "timeout" : "hit");
   player.die(cause); // 被撞倒下／超時搖頭
   state = "fail";
   let sub: string;
@@ -297,9 +313,11 @@ hud.bindShare(async () => {
 
 // 結算畫面的「按任意鍵」：鍵盤和觸控（點螢幕）都走這裡
 function tryAdvance(): void {
+  sfx.unlock(); // 瀏覽器規定要有使用者互動過才准出聲；每次互動都叫一次（第二次之後只是確認沒被暫停）
   if (state === "title") {
     // 標題畫面：素材到齊就能開始，不用等結算畫面那個停留時間
     if (titleReady) {
+      sfx.play("start");
       hud.hideTitle();
       startLevel(0);
     }
@@ -321,7 +339,10 @@ function tryAdvance(): void {
     }
   }
 }
-window.addEventListener("keydown", tryAdvance);
+// 「按任意鍵」：M 除外（那是音效開關，在結算畫面按它不該順便跳下一關）
+window.addEventListener("keydown", (e) => {
+  if (e.key !== "m" && e.key !== "M") tryAdvance();
+});
 
 // 虛擬搖桿（手指或滑鼠左鍵拖曳，無段式）；觸控裝置換掉操作提示文字
 const touch = new TouchControls(tryAdvance);
@@ -374,39 +395,40 @@ function updateCamera(dt: number): void {
   }
 }
 
-// 後方來車的喇叭聲：public/assets/sfx/horn.mp3（沒有檔案就靜音，只剩畫面上的「!」）。
-// 警示「剛出現」那一刻響一次，之後至少隔 hornCooldown 秒才再響
-const horn = new Audio(`${import.meta.env.BASE_URL}assets/sfx/horn.mp3`);
-horn.preload = "auto";
-let hornReady = false;
-horn.addEventListener("canplaythrough", () => (hornReady = true));
-let hornLast = -Infinity; // 上次響的時間（performance.now 毫秒）
+// 來車警示。兩個方向各自「剛出現威脅」的那一刻按一次喇叭（腳踏車則是按鈴），
+// 太密的由 TUNING.audio.sfx.horn/bell 的 minGap 擋掉：
+//   後方 → 畫面上的紅色「!」＋聲音（背後的車看不到，需要提示）
+//   迎面 → 只有聲音（車就在你眼前，不用再出「!」）
 let warnWasOn = false;
-function updateRearWarning(): void {
-  const w = state === "running" ? traffic.threatFromBehind(player) : null;
-  hud.setRearWarning(w);
-  const on = w !== null;
-  if (on && !warnWasOn && hornReady && performance.now() - hornLast > TUNING.rearWarning.hornCooldown * 1000) {
-    hornLast = performance.now();
-    horn.currentTime = 0;
-    horn.play().catch(() => {}); // 瀏覽器還沒允許播音（沒互動過）就略過
-  }
-  warnWasOn = on;
+let aheadWasOn = false;
+function updateWarnings(): void {
+  const running = state === "running";
+  const behind = running ? traffic.threatFromBehind(player) : null;
+  hud.setRearWarning(behind);
+  if (behind && !warnWasOn) sfx.play(behind.kind === "bike" ? "bell" : "horn");
+  warnWasOn = behind !== null;
+
+  const ahead = running ? traffic.oncomingThreat(player) : null;
+  if (ahead && !aheadWasOn) sfx.play(ahead === "bike" ? "bell" : "horn");
+  aheadWasOn = ahead !== null;
 }
 
 // debug overlay 用：各模組每幀耗時（毫秒，指數平滑平均），找出邏輯時間花在哪
-const prof = { ix: 0, dest: 0, world: 0, obs: 0, traffic: 0, player: 0 };
+const prof = { ix: 0, dest: 0, world: 0, obs: 0, traffic: 0, player: 0, warn: 0 };
 function profTake(key: keyof typeof prof, t0: number): number {
   const now = performance.now();
   prof[key] = prof[key] * 0.9 + (now - t0) * 0.1;
   return now;
 }
 
+sfx.prepare(); // 排好要算的音效波形（真正的計算在下面每幀一個，趁標題畫面等素材時算完）
+
 const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
   // dt 上限 0.05 秒：切分頁回來時避免一大步跳幀（穿過車或瞬移）
   const dt = Math.min(clock.getDelta(), 0.05);
   const tFrame0 = performance.now(); // 每幀 JS 耗時量測（debug overlay 顯示）
+  sfx.prepareStep(); // 一幀算一個音效波形；全部算完後就是空轉
   const lv = level();
   let animDt = dt; // 人物動畫用的 dt（撞擊定格／慢動作時會變小）
 
@@ -454,7 +476,10 @@ renderer.setAnimationLoop(() => {
     if (mz < -1e-3) dz = TUNING.walkSpeed * formSpeed * -mz * dt;
     else if (mz > 1e-3) dz = -TUNING.backSpeed * formSpeed * mz * dt;
     dz = Math.max(dz, -position); // 不能退到起點之前
+    const wantDz = dz;
     dz = obstacles.clampScroll(player.mesh.position, player.size, dz); // 被路障擋住
+    // 想往前卻被擋掉一半以上 = 撞上路障了，悶響一聲（minGap 擋掉連發）
+    if (wantDz > 1e-4 && dz < wantDz * 0.5) sfx.play("bump");
 
     let tp = performance.now();
     intersections.update(dz, dt, timeLeft, maxDistance, lv, (z) =>
@@ -472,12 +497,15 @@ renderer.setAnimationLoop(() => {
     traffic.update(dt, dz, obstacles, lv, intersections);
     tp = profTake("traffic", tp);
     // 橫移量與朝向都用世界方向（可以是小數：斜著走就是斜的）
+    const beforeX = player.mesh.position.x;
     player.update(dt, mx, -mz, TUNING.strafeSpeed * formSpeed, (p, s) => obstacles.blocksAt(p, s), dz);
     profTake("player", tp);
+    sfx.step(Math.abs(dz) + Math.abs(player.mesh.position.x - beforeX)); // 真正移動的距離（含橫移）→ 腳步聲
 
     position += dz;
     maxDistance = Math.max(maxDistance, position);
     timeLeft -= dt;
+    sfx.countdown(timeLeft); // 剩 audio.tickBelow 秒開始每秒嗶一聲
     // 無盡模式升階：跳一行提示（難度參數由 level() 依 maxDistance 自動換）
     if (isEndless()) {
       const stage = endlessStage(maxDistance);
@@ -485,6 +513,7 @@ renderer.setAnimationLoop(() => {
         endlessStageShown = stage;
         const flavors = TUNING.endless.stageFlavors;
         const flavor = flavors.length ? flavors[(stage - 1) % flavors.length] : "";
+        sfx.play("stage");
         hud.showToast(`${stage * TUNING.endless.stageLength} m` + (flavor ? `｜${flavor}` : ""));
         // 每 backdropEveryStages 階換一張背景（淡入淡出，天空霧色跟著慢慢變），照 endless.backdrops 的順序輪
         const every = TUNING.endless.backdropEveryStages;
@@ -568,7 +597,10 @@ renderer.setAnimationLoop(() => {
   } else {
     hud.setStatus(hearts, TUNING.maxHearts, `第 ${levelIndex + 1} 關`, progressText, timeLeft);
   }
-  updateRearWarning();
+  const tWarn = performance.now();
+  updateWarnings(); // 每幀掃一次車陣（前後各一次）找快撞上的車 → 「!」與喇叭/鈴鐺
+  profTake("warn", tWarn);
+  sfx.setAmbient(state === "running"); // 只有真的在走的時候放環境底噪（沒變就什麼都不做）
   debug.update(dt, { sim: tSim, frameStart: tFrame0 }, () => {
     const c = traffic.counts(obstacles);
     return [
@@ -582,7 +614,7 @@ renderer.setAnimationLoop(() => {
       `time ${timeLeft.toFixed(1)}s`,
       `spawnInterval ${lv.spawnInterval.toFixed(2)}s  speedScale ${lv.speedScale.toFixed(2)}  gap ${lv.obstacleGapMin.toFixed(1)}~${lv.obstacleGapMax.toFixed(1)}  road ${lv.obstacleRoadChance.toFixed(2)}  turn ${(lv.turnChance ?? TUNING.intersection.turnChance).toFixed(2)}  bike ${(lv.bikeInterval ?? 0).toFixed(1)}s`,
       `backdrop ${world.backdropInfo}  (按 2 切換)`,
-      `邏輯分項 ms: 路口 ${prof.ix.toFixed(1)}  目的地 ${prof.dest.toFixed(1)}  世界 ${prof.world.toFixed(1)}  路障 ${prof.obs.toFixed(1)}  車流 ${prof.traffic.toFixed(1)}  玩家 ${prof.player.toFixed(1)}`,
+      `邏輯分項 ms: 路口 ${prof.ix.toFixed(1)}  目的地 ${prof.dest.toFixed(1)}  世界 ${prof.world.toFixed(1)}  路障 ${prof.obs.toFixed(1)}  車流 ${prof.traffic.toFixed(1)}  玩家 ${prof.player.toFixed(1)}  來車警示 ${prof.warn.toFixed(2)}`,
       `draw calls ${renderer.info.render.calls}  triangles ${renderer.info.render.triangles}  textures ${renderer.info.memory.textures}  geometries ${renderer.info.memory.geometries}`,
       `cars ${c.total} (turning ${c.turning})  bikes ${c.bikes} (in lane ${c.bikesInLane}, stopped ${c.bikesStopped}, clipping ${c.bikeClips})  obstacles ${obstacles.count}  intersections ${intersections.count}`,
     ].join("\n");

@@ -19,6 +19,7 @@ export class Hud {
   private warnKey = ""; // 上次顯示的狀態，沒變就不動 DOM
   private readonly hud = el("hud");
   private readonly hint = el("hint");
+  private readonly sound = el("sound") as HTMLButtonElement;
   private readonly title = el("title");
   private readonly titleName = el("title-name");
   private readonly titleControls = el("title-controls");
@@ -41,6 +42,16 @@ export class Hud {
   private readonly winFlavor = el("win-flavor");
   private readonly winPrompt = el("win-prompt");
   private promptTimer = 0; // 延遲顯示「按任意鍵」的計時器
+
+  // 右上角的音效開關按鈕（手機沒鍵盤，按不到 M）：點了就呼叫 onToggle，
+  // 圖示由 main.ts 那邊呼叫 setMuted 更新（M 鍵按下去時也走同一條路）
+  bindSoundButton(onToggle: () => void): void {
+    this.sound.addEventListener("click", onToggle);
+  }
+  setMuted(muted: boolean): void {
+    this.sound.textContent = muted ? "🔇" : "🔊";
+    this.sound.classList.toggle("off", muted);
+  }
 
   // 這關的目的地任務，整關掛在狀態列（空字串 = 不顯示，無盡模式用）
   setGoal(text: string): void {

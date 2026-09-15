@@ -272,7 +272,7 @@
       }
       #debug {
         position: fixed;
-        top: 16px;
+        top: 70px; /* 讓開右上角的音效按鈕 */
         right: 16px;
         display: none;
         white-space: pre;
@@ -284,6 +284,29 @@
       }
       #debug.show {
         display: block;
+      }
+      /* 音效開關（右上角）：手機沒有鍵盤按不到 M 鍵，所以要有這顆。
+         z-index 壓過所有覆蓋畫面，標題/失敗/抵達畫面上也按得到；
+         touch.ts 看到點的是 <button> 就不生搖桿，所以按它不會順便開始遊戲 */
+      #sound {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        z-index: 10;
+        width: 44px; /* 手指點得到的最小尺寸 */
+        height: 44px;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.35);
+        color: #fff;
+        font-size: 20px;
+        line-height: 44px;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #sound.off {
+        opacity: 0.45;
       }
       /* 虛擬搖桿（touch.ts 控制顯示位置） */
       #stick-base {
@@ -343,6 +366,7 @@
       <p id="banner-loading"></p>
     </div>
     <div id="hit-vignette"></div>
+    <button id="sound" type="button" aria-label="音效開關">🔊</button>
     <div id="fail" class="overlay">
       <h1 id="fail-title"></h1>
       <p id="fail-flavor"></p>

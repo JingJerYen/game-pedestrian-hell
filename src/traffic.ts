@@ -525,11 +525,11 @@ export class Traffic {
 
   // 後方來車警示：從背後來（同向、直行）、橫向會擦到、幾秒內會追上的車裡最急的那台；
   // 沒有就 null。side = 車在玩家的左後（-1）／正後（0）／右後（1）
-  threatFromBehind(player: Player): { side: -1 | 0 | 1; seconds: number } | null {
+  threatFromBehind(player: Player): { side: -1 | 0 | 1; seconds: number; kind: Car["kind"] } | null {
     const w = TUNING.rearWarning;
     const px = player.mesh.position.x;
     const pz = player.mesh.position.z;
-    let best: { side: -1 | 0 | 1; seconds: number } | null = null;
+    let best: { side: -1 | 0 | 1; seconds: number; kind: Car["kind"] } | null = null;
     for (const car of this.cars) {
       if (car.dir !== -1 || car.mode !== "straight") continue; // 只看從背後往前開的直行車
       const gap = car.mesh.position.z - car.size.z / 2 - (pz + player.size.z / 2); // 車頭到人背後的距離
@@ -542,10 +542,34 @@ export class Traffic {
       const seconds = Math.max(0, gap) / closing;
       if (seconds > w.seconds) continue;
       if (!best || seconds < best.seconds) {
-        best = { side: Math.abs(dx) < 0.3 ? 0 : dx < 0 ? -1 : 1, seconds };
+        best = { side: Math.abs(dx) < 0.3 ? 0 : dx < 0 ? -1 : 1, seconds, kind: car.kind };
       }
     }
     return best;
+  }
+
+  // 迎面（往鏡頭衝過來）而且快要撞上的車，回傳車種——純粹給音效用：
+  // 台灣的車看到行人擋在路上就是叭你，左側人行道騎過來的腳踏車則是按鈴。
+  // 畫面上不出「!」警示（迎面的車本來就看得到，不需要提示）
+  oncomingThreat(player: Player): Car["kind"] | null {
+    const w = TUNING.audio.oncomingHorn;
+    const px = player.mesh.position.x;
+    const pz = player.mesh.position.z;
+    let best: { kind: Car["kind"]; seconds: number } | null = null;
+    for (const car of this.cars) {
+      if (car.dir !== 1 || car.mode !== "straight") continue; // 只看迎面直行的
+      const gap = pz - player.size.z / 2 - (car.mesh.position.z + car.size.z / 2); // 車頭到人正面的距離
+      if (gap < 0 || gap > w.maxDistance) continue; // 已經擦身而過就不算
+      const dx = car.mesh.position.x - px;
+      if (Math.abs(dx) > (car.size.x + player.size.x) / 2 + w.lateral) continue; // 橫向擦不到
+      // 接近速度：車往我開、我往車走，兩邊要相加（跟後方來車相反）
+      const closing = car.effSpeed + this.scrollSpeed;
+      if (closing <= 0.1) continue;
+      const seconds = gap / closing;
+      if (seconds > w.seconds) continue;
+      if (!best || seconds < best.seconds) best = { kind: car.kind, seconds };
+    }
+    return best?.kind ?? null;
   }
 
   // debug overlay 用。bikeClips = 腳踏車此刻和汽車/路障疊在一起的數量——正常應該永遠是 0

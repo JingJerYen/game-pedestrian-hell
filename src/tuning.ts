@@ -263,7 +263,50 @@ export const TUNING = {
     seconds: 2.0, // 幾秒內會追上才提示（後方距離 ÷ 接近速度）
     lateral: 1.2, // 橫向：車和人的邊緣相距在這以內才算會擦到（公尺）
     maxDistance: 45, // 只看後方這麼遠以內的車
-    hornCooldown: 3, // 喇叭聲最短間隔（秒）；聲音檔放 public/assets/sfx/horn.mp3，沒有就只有「!」
+    // （喇叭聲最短間隔改在下面 audio.sfx.horn.minGap）
+  },
+
+  // ── 音效（實作在 src/sfx.ts）────────────────────────────────
+  // 預設全部是「程式合成」的：沒有任何音檔要下載，開場時算一次波形就好。
+  // 想換成真的錄音：把檔案丟進 public/assets/sfx/，在下面那一行的 file 填檔名（例：file: "horn.mp3"）。
+  // 玩家可以按 M 鍵一鍵全開/全關（會記在瀏覽器）。
+  audio: {
+    enabled: true, // 總開關（false = 整套音效不啟動，連 AudioContext 都不建）
+    masterVolume: 0.7, // 總音量（0～1）
+    stepDistance: 1.1, // 走幾公尺踏一步腳步聲（越小步伐越急、也越吵）
+    tickBelow: 10, // 倒數剩幾秒以下開始每秒「嗶」一聲
+    ambientLoopSeconds: 4, // 環境底噪的循環長度（秒）：越長越不會聽出重複，但開場多算一點點
+    // 合成波形時用的取樣率。一半 = 能表現的最高頻率（22050 → 11 kHz，該聽到的都在裡面）。
+    // 調低 = 開場算得更快、更省記憶體，但高頻會變鈍；播放時瀏覽器自動轉成裝置的取樣率，音高不受影響
+    renderRate: 22050,
+    ambientFade: 1.2, // 環境底噪淡入/淡出秒數
+    ambientDuck: 0.06, // 被撞那一瞬間底噪收掉的秒數：背景一安靜，撞擊聲才顯得重
+
+    // 迎面來車按喇叭（腳踏車則是按鈴）：純音效，畫面上不出「!」——迎面的車本來就看得到。
+    // 條件跟後方警示同一套演算法，只是方向相反（接近速度 = 車速 ＋ 你往前走的速度）
+    oncomingHorn: {
+      seconds: 1.6, // 幾秒內會撞上才叭（比後方警示短一點，不然整路都在叭）
+      lateral: 0.9, // 橫向：車和人的邊緣相距在這以內才算會擦到（公尺）
+      maxDistance: 40, // 只看前方這麼遠以內的車
+    },
+
+    // 每個音效一行。on = 這個音效開不開（實驗時單獨關掉很方便）；
+    // volume = 音量；minGap = 最短間隔幾秒（0 = 不限，防止連發吵死）；
+    // jitter = 每次播放的音高隨機幅度（0.12 = ±12%，連續響才不會像機器人）；
+    // file = 音檔檔名（放 public/assets/sfx/）；留空 = 用程式合成的，也不會發多餘的網路請求
+    sfx: {
+      horn: /*     來車喇叭（後方警示／迎面靠近）*/ { on: true, volume: 0.55, minGap: 2, jitter: 0.04, file: "" },
+      bell: /*     腳踏車鈴鐺（同上，但兇手是腳踏車）*/ { on: true, volume: 0.35, minGap: 2, jitter: 0.06, file: "" },
+      hit: /*      被車撞死             */ { on: true, volume: 1.0, minGap: 0, jitter: 0, file: "" },
+      timeout: /*  時間到失敗           */ { on: true, volume: 0.55, minGap: 0, jitter: 0, file: "" },
+      clear: /*    抵達目的地過關       */ { on: true, volume: 0.55, minGap: 0, jitter: 0, file: "" },
+      start: /*    標題畫面按下開始     */ { on: true, volume: 0.45, minGap: 0, jitter: 0, file: "" },
+      tick: /*     倒數最後幾秒每秒一聲 */ { on: true, volume: 0.3, minGap: 0, jitter: 0, file: "" },
+      footstep: /* 走路腳步             */ { on: true, volume: 0.08, minGap: 0.18, jitter: 0.14, file: "" },
+      bump: /*     撞到路障（不致死）   */ { on: true, volume: 0.35, minGap: 0.4, jitter: 0.1, file: "" },
+      stage: /*    無盡模式升階         */ { on: true, volume: 0.35, minGap: 0, jitter: 0, file: "" },
+      ambient: /*  街道環境底噪（循環） */ { on: true, volume: 0.22, minGap: 0, jitter: 0, file: "" },
+    },
   },
 
   // ── 路口車用號誌上的路牌 ──
@@ -302,7 +345,7 @@ export const TUNING = {
   // ── 開場標題畫面（素材載入期間顯示；點一下開始，順便取得手機播音授權）──
   title: {
     name: "我們的賽車場",
-    controlsKeyboard: ["↑ 前進　↓ 後退", "← → 橫移", "或滑鼠按住畫面拖曳"],
+    controlsKeyboard: ["↑ 前進　↓ 後退", "← → 橫移", "或滑鼠按住畫面拖曳", "M 鍵開關音效"],
     controlsTouch: ["按住畫面拖曳移動", "推越遠走越快"],
   },
 
