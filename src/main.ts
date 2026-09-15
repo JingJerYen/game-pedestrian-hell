@@ -428,7 +428,8 @@ renderer.setAnimationLoop(() => {
   // dt 上限 0.05 秒：切分頁回來時避免一大步跳幀（穿過車或瞬移）
   const dt = Math.min(clock.getDelta(), 0.05);
   const tFrame0 = performance.now(); // 每幀 JS 耗時量測（debug overlay 顯示）
-  sfx.prepareStep(); // 一幀算一個音效波形；全部算完後就是空轉
+  // 一幀算一個音效波形。遊戲中絕不算——寧可開場慢，也不要玩到一半掉幀
+  if (state !== "running") sfx.prepareStep();
   const lv = level();
   let animDt = dt; // 人物動畫用的 dt（撞擊定格／慢動作時會變小）
 
@@ -454,6 +455,7 @@ renderer.setAnimationLoop(() => {
       bannerTimer -= dt; // 素材到齊才開始倒數
     }
     if (bannerTimer <= 0) {
+      sfx.finishPrepare(); // 還沒算完的波形在這裡一次算完（橫幅還在畫面上，卡一下看不出來）
       hud.hideOverlays();
       state = "running";
     }

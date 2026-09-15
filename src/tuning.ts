@@ -281,6 +281,14 @@ export const TUNING = {
     renderRate: 22050,
     ambientFade: 1.2, // 環境底噪淡入/淡出秒數
     ambientDuck: 0.06, // 被撞那一瞬間底噪收掉的秒數：背景一安靜，撞擊聲才顯得重
+    // 環境底噪的「厚度」：波形本身的平均能量（不是音量，音量是下面 ambient 那行的 volume）。
+    // 噪音要靠這個才聽得到，光調 volume 效果有限——原理見 sfx.ts 的 renderAmbient。
+    // 調太高（> 0.6）會被 tanh 壓扁，變成沙沙的破音
+    ambientLoudness: 0.45,
+    // 底噪的音色高低（截止頻率，Hz）：低 = 遠處的悶悶轟隆、高 = 近處的沙沙車聲。
+    // 【不要低於 200】手機和筆電喇叭放不出 200 Hz 以下的聲音，訂太低玩家會完全聽不到——
+    // 這跟音量無關，開再大聲都一樣
+    ambientTone: 450,
 
     // 迎面來車按喇叭（腳踏車則是按鈴）：純音效，畫面上不出「!」——迎面的車本來就看得到。
     // 條件跟後方警示同一套演算法，只是方向相反（接近速度 = 車速 ＋ 你往前走的速度）
@@ -305,7 +313,7 @@ export const TUNING = {
       footstep: /* 走路腳步             */ { on: true, volume: 0.08, minGap: 0.18, jitter: 0.14, file: "" },
       bump: /*     撞到路障（不致死）   */ { on: true, volume: 0.35, minGap: 0.4, jitter: 0.1, file: "" },
       stage: /*    無盡模式升階         */ { on: true, volume: 0.35, minGap: 0, jitter: 0, file: "" },
-      ambient: /*  街道環境底噪（循環） */ { on: true, volume: 0.22, minGap: 0, jitter: 0, file: "" },
+      ambient: /*  街道環境底噪（循環） */ { on: true, volume: 0.3, minGap: 0, jitter: 0, file: "" },
     },
   },
 

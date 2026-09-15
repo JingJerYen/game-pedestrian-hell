@@ -57,6 +57,14 @@ function tone(t: number, freq: number, harmonics = 1): number {
   return v / HARMONIC_NORM[harmonics];
 }
 
+// 一階低通濾波器的係數：把「截止頻率（Hz）」換算成每個取樣點要混進多少新值。
+// 一定要用這個算、不能把係數寫死——係數的意義跟取樣率綁在一起，
+// 寫死的話改 renderRate 會連音色一起改掉（截止頻率跟著取樣率一起跑）。
+// 小喇叭（手機、筆電）放不出大約 200 Hz 以下的東西，所以截止頻率訂太低 = 玩家什麼都聽不到
+function lpCoef(sampleRate: number, hz: number): number {
+  return 1 - Math.exp((-2 * Math.PI * hz) / sampleRate);
+}
+
 // 這個音效的波形要用多高的取樣率算。取樣率一半 = 能表現的最高頻率，
 // 22050 → 11 kHz，該聽到的都在裡面；算越低越快、也越省記憶體。
 // 播放時瀏覽器會自動轉成裝置的取樣率，音高和長度都不會變。
@@ -72,12 +80,13 @@ function renderAmbient(sampleRate: number, seconds: number): Float32Array {
   const n = Math.floor(sampleRate * seconds);
   const fade = Math.floor(sampleRate * 0.5); // 交叉淡接的長度
   const raw = new Float32Array(n + fade);
+  const a = lpCoef(sampleRate, TUNING.audio.ambientTone); // 兩級疊起來 = 斜率更陡的「遠處」感
   let lp1 = 0;
   let lp2 = 0;
   for (let i = 0; i < raw.length; i++) {
     const t = i / sampleRate;
-    lp1 += (Math.random() * 2 - 1 - lp1) * 0.02;
-    lp2 += (lp1 - lp2) * 0.02;
+    lp1 += (Math.random() * 2 - 1 - lp1) * a;
+    lp2 += (lp1 - lp2) * a;
     const swell =
       0.75 + 0.25 * Math.sin((2 * Math.PI * t) / seconds) + 0.12 * Math.sin((4 * Math.PI * t) / seconds);
     raw[i] = lp2 * swell;
@@ -88,7 +97,15 @@ function renderAmbient(sampleRate: number, seconds: number): Float32Array {
     const w = i / fade;
     out[i] = out[i] * w + raw[n + i] * (1 - w);
   }
-  return normalize(out, 0.7);
+  // 這裡不能用 normalize（那是按「尖峰」拉音量）。噪音的尖峰是偶爾冒出來的毛刺，
+  // 人耳聽的卻是平均能量——同樣的尖峰，噪音聽起來比樂音小一半。
+  // 所以改成按平均能量（RMS）拉到目標值，再用 tanh 把冒出來的尖峰壓平（不會破音）
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += out[i] * out[i];
+  const rms = Math.sqrt(sum / n);
+  const k = rms > 0 ? TUNING.audio.ambientLoudness / rms : 0;
+  for (let i = 0; i < n; i++) out[i] = Math.tanh(out[i] * k);
+  return out;
 }
 
 // 每個音效怎麼合成。名字要跟 tuning.ts 的 audio.sfx 一模一樣（型別會幫忙檢查）
@@ -118,6 +135,10 @@ const SYNTH: Record<SfxName, (sampleRate: number) => Float32Array> = {
   // 被撞：三層疊起來才夠份量
   hit: (sr) => {
     let lp = 0;
+    // 碎裂那層的截止頻率會隨時間往下掃，但 lpCoef 裡有 Math.exp，每個取樣點都算太貴
+    // （整個音效會從 11 ms 變成 25 ms）。每 2 ms 更新一次就好，聽不出差別
+    let a = 0;
+    let nextCoefAt = -1;
     return render(sr, 1.1, (t) => {
       // 1. 低頻 boom（往下沉）：起點不要訂太低——手機和筆電喇叭放不出 100 Hz 以下，
       //    訂太低只會變成「什麼都沒聽到」，這是原本那版聽起來很薄的原因
@@ -128,8 +149,13 @@ const SYNTH: Record<SfxName, (sampleRate: number) => Float32Array> = {
           Math.sin(2 * Math.PI * 349 * t) * 0.7 +
           Math.sin(2 * Math.PI * 587 * t) * 0.5) *
         Math.exp(-t * 6);
-      // 3. 碎裂：噪音過一個「越關越緊」的低通——一開始刺耳，馬上變悶，像東西散開
-      lp += (Math.random() * 2 - 1 - lp) * Math.max(0.6 - t * 1.2, 0.05);
+      // 3. 碎裂：噪音過一個「越關越緊」的低通
+      // 截止頻率從 4500 Hz 一路關到 400 Hz：一開始刺耳，馬上變悶，像東西散開
+      if (t >= nextCoefAt) {
+        a = lpCoef(sr, Math.max(4500 - t * 8000, 400));
+        nextCoefAt = t + 0.002;
+      }
+      lp += (Math.random() * 2 - 1 - lp) * a;
       const crash = lp * Math.exp(-t * 5);
       // tanh 把尖峰壓平（軟削波）：波形變厚、平均音量大幅提高，
       // 在小喇叭上「震撼」靠的是這個，不是把音量開大
@@ -172,18 +198,20 @@ const SYNTH: Record<SfxName, (sampleRate: number) => Float32Array> = {
   // 腳步：只有悶悶的鞋底摩擦。低通係數越小越悶（0.09 很悶）；
   // 不加低頻的「咚」——那個會讓每一步都像巨人踩地，是原本很吵的主因
   footstep: (sr) => {
+    const a = lpCoef(sr, 320); // 320 Hz：悶，但還在小喇叭放得出來的範圍
     let lp = 0;
     return render(sr, 0.09, (t) => {
-      lp += (Math.random() * 2 - 1 - lp) * 0.09;
+      lp += (Math.random() * 2 - 1 - lp) * a;
       return lp * Math.exp(-t * 34);
     });
   },
 
   // 撞到路障：比腳步更低更悶的一聲（不致死，所以不要太嚇人）
   bump: (sr) => {
+    const a = lpCoef(sr, 300);
     let lp = 0;
     return render(sr, 0.22, (t) => {
-      lp += (Math.random() * 2 - 1 - lp) * 0.08;
+      lp += (Math.random() * 2 - 1 - lp) * a;
       return (Math.sin(2 * Math.PI * (95 - 60 * t) * t) * 0.8 + lp * 0.9) * Math.exp(-t * 14);
     });
   },
@@ -254,6 +282,12 @@ class Sfx {
     const rate = rateFor(name);
     this.pcm.set(name, { data: SYNTH[name](rate), rate });
     if (this.ctx) this.toBuffer(name); // 玩家點很快、已經 unlock 過了：直接轉成可播的
+  }
+
+  // 進入遊戲前呼叫：把剩下的波形一次算完。
+  // 開場多卡一下沒關係，遊戲中掉幀才要命——所以寧可全部塞在橫幅那一刻
+  finishPrepare(): void {
+    while (this.queue.length) this.prepareStep();
   }
 
   // 波形數字 → 瀏覽器的 AudioBuffer（只是記憶體複製，很快）
