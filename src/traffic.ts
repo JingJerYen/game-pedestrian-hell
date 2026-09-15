@@ -44,6 +44,7 @@ interface Car {
   inLane: boolean; // 腳踏車用：目前目標是路邊車道（true）還是人行道（false）
   stall: "" | "merge" | "return" | "turn"; // 腳踏車用（debug）：這一幀因為什麼原因主動煞停
   kind: "scooter" | "car" | "truck" | "bike"; // 車種（死亡字幕要報兇手）
+  glow: THREE.Object3D | null; // 同向車的車頭燈光暈（只在車還在玩家後方附近時顯示，省填色率）
 }
 
 // 腳踏車相對某個路口「右轉掃過範圍」的位置
@@ -123,6 +124,8 @@ export class Traffic {
       const car = this.cars[i];
       const p = car.mesh.position;
       p.z += dz; // 世界捲動人人有份
+      // 光暈只在車還在玩家後方、或剛超過不遠時顯示：遠在前方的車玩家看得到車本身，光暈只是白塗像素
+      if (car.glow) car.glow.visible = car.mode === "straight" && p.z > -t.headlight.showAheadUntil;
 
       if (car.mode === "straight") {
         if (car.bike) {
@@ -394,9 +397,14 @@ export class Traffic {
     const mesh = makeVehicleMesh(type, color); // 3D 模型→貼圖箱→色塊（vehicleskins.ts）
     const baseX = colX(col) + offset;
     mesh.position.set(baseX, v.size.y / 2, z);
+    let glow: THREE.Object3D | null = null;
     if (dir === -1) {
       mesh.rotation.y = Math.PI;
-      mesh.add(makeHeadlightGlow(v.size)); // 從背後來的車：車頭燈光暈打在前方地面，玩家先看到光再看到車
+      if (TUNING.headlight.enabled) {
+        glow = makeHeadlightGlow(v.size); // 從背後來的車：車頭燈光暈打在前方地面，玩家先看到光再看到車
+        glow.visible = false; // 進到玩家後方附近才開（update 每幀切）
+        mesh.add(glow);
+      }
     }
     this.scene.add(mesh);
     // 左（迎面）右（同向）車速可分開調，沒個別設定就用 speedScale
@@ -422,6 +430,7 @@ export class Traffic {
       inLane: false,
       stall: "",
       kind: type,
+      glow,
     });
   }
 
@@ -456,9 +465,14 @@ export class Traffic {
     const color = b.colors[Math.floor(Math.random() * b.colors.length)];
     const mesh = makeVehicleMesh("bike", color); // 腳踏車也吃同一套外觀管線
     mesh.position.set(baseX, b.size.y / 2, spawnZ);
+    let glow: THREE.Object3D | null = null;
     if (dir === -1) {
       mesh.rotation.y = Math.PI;
-      if (TUNING.headlight.bikes) mesh.add(makeHeadlightGlow(b.size, TUNING.headlight.bikeScale));
+      if (TUNING.headlight.enabled && TUNING.headlight.bikes) {
+        glow = makeHeadlightGlow(b.size, TUNING.headlight.bikeScale);
+        glow.visible = false;
+        mesh.add(glow);
+      }
     }
     this.scene.add(mesh);
     const speed = THREE.MathUtils.lerp(b.speedMin, b.speedMax, Math.random());
@@ -478,6 +492,7 @@ export class Traffic {
       inLane: false,
       stall: "",
       kind: "bike",
+      glow,
     });
   }
 
