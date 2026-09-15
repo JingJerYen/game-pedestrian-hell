@@ -6,7 +6,7 @@
 //   死了結算最遠距離，按鍵從無盡起點再來
 
 import * as THREE from "three";
-import { TUNING, LEVELS, LAYOUT, hasSidewalk, type PlayerForm } from "./tuning";
+import { TUNING, LEVELS, LAYOUT, hasSidewalk, walkMinX, walkMaxX, type PlayerForm } from "./tuning";
 import { endlessLevel, endlessStage } from "./levelgen";
 import { World } from "./world";
 import { Player } from "./player";
@@ -310,7 +310,13 @@ function updateCamera(dt: number): void {
     camera.fov = fov;
     camera.updateProjectionMatrix();
   }
-  cameraX = THREE.MathUtils.damp(cameraX, player.mesh.position.x, t.cameraXDamp, dt);
+  // 橫向跟著人，但離建築線保持 cameraXMargin（人貼牆時鏡頭不跟進招牌底下）
+  const targetX = THREE.MathUtils.clamp(
+    player.mesh.position.x,
+    walkMinX() + t.cameraXMargin,
+    walkMaxX() - t.cameraXMargin,
+  );
+  cameraX = THREE.MathUtils.damp(cameraX, targetX, t.cameraXDamp, dt);
   camera.position.set(cameraX, height, distance);
   if (hitT < 0) {
     camera.lookAt(cameraX, 0.8, -lookAhead);
