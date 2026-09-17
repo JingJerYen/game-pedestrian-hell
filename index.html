@@ -16,6 +16,9 @@
         background: #1a1a2e;
         font-family: system-ui, "Noto Sans TC", sans-serif;
         touch-action: none; /* 擋掉手機的下拉重整、雙擊縮放等手勢 */
+        /* 關掉 App 內建瀏覽器（LINE、FB 的 WebView）的「文字自動放大」：不然 HUD 會被放大到佔掉三分之一畫面 */
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
         -webkit-user-select: none;
         user-select: none;
       }
@@ -40,6 +43,27 @@
       #hud .row {
         font-size: 22px;
         margin-top: 4px;
+      }
+      /* 手機（窄螢幕）：HUD 縮小，不然四行字加愛心會佔掉太多畫面 */
+      @media (max-width: 600px) {
+        #hud {
+          top: 10px;
+          left: 10px;
+        }
+        #hearts {
+          font-size: 20px;
+          letter-spacing: 3px;
+        }
+        #hud .row {
+          font-size: 15px;
+          margin-top: 2px;
+        }
+        #goal {
+          font-size: 14px;
+        }
+        #hint {
+          font-size: 13px;
+        }
       }
       /* 後方來車警示：紅色「!」在畫面下方閃，依車在左後/右後偏左/偏右並帶箭頭；快追上時閃更快 */
       #warn {
