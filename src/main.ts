@@ -24,7 +24,7 @@ import { buildingModelsReady, makeTrafficLight, makeVehicleSignal } from "./skin
 import { vehicleModelsReady, allVehiclePrototypes } from "./vehicleskins";
 import { charactersReady, makeCharacterRig } from "./charskins";
 
-const FORM_LABEL = { walker: "步行", stroller: "推嬰兒車", wheelchair: "坐輪椅" } as const;
+const FORM_LABEL = { walker: "步行", stroller: "嬰兒車", wheelchair: "輪椅" } as const;
 const SIDE_LABEL = { left: "左側", right: "右側" } as const;
 // 抵達判定：離目標距離 ± 1 公尺才算「在目的地」（遊戲規則，固定值不調參）
 const GOAL_ARRIVE_RANGE = 1;
@@ -162,34 +162,16 @@ function startLevel(index: number): void {
   world.setBackdrop(isEndless() ? TUNING.endless.backdrops[0] : (lv.backdrop ?? index));
   world.applySidewalks(); // 依 LAYOUT 換鋪面、挪建築
   hud.hideOverlays();
-  // 目標提示依關卡設定組合：側別/距離都可以個別關掉（讓玩家自己找目的地）
-  const showSide = !!lv.goalSide && !lv.hideSideHint;
-  const showDist = !lv.hideDistanceHint;
-  const sideText = showSide ? SIDE_LABEL[lv.goalSide!] : "";
-  let goalText: string;
-  if (showDist && showSide) goalText = `走到 ${lv.goalDistance}m 的${sideText}人行道`;
-  else if (showDist) goalText = `走到 ${lv.goalDistance}m`;
-  else if (showSide) goalText = `終點在${sideText}人行道`;
-  else goalText = "自己找到終點";
   // 小語：關卡有覆寫就用覆寫，否則用目的地總表那句
   const destFlavor = lv.destination ? TUNING.destinations[lv.destination]?.flavor ?? "" : "";
   const flavor = lv.flavorText ?? destFlavor;
   // 目的地任務整關掛在 HUD 左上角（無盡模式沒有目的地）
   hud.setGoal(isEndless() ? "" : [`🎯 ${lv.destination ?? "終點"}`, flavor].filter(Boolean).join("｜"));
   if (isEndless()) {
-    const e = TUNING.endless;
-    const best = bestDistance > 0 ? `｜最遠紀錄 ${Math.floor(bestDistance)} m` : "";
-    hud.showBanner(
-      "無盡模式",
-      e.entryFlavor,
-      `${FORM_LABEL[lv.playerForm]}｜沒有終點，看你能走多遠｜每 ${e.stageLength} m 難一點${best}`,
-    );
+    hud.showBanner("無盡模式", TUNING.endless.entryFlavor, FORM_LABEL[lv.playerForm]);
   } else {
-    hud.showBanner(
-      `第 ${index + 1} 關`,
-      flavor,
-      `${FORM_LABEL[lv.playerForm]}｜${goalText}｜時限 ${lv.timeLimit} 秒`,
-    );
+    // 第三行只放行人型態（目標與時限 HUD 上都看得到，橫幅不重複）
+    hud.showBanner(`第 ${index + 1} 關`, flavor, FORM_LABEL[lv.playerForm]);
   }
   bannerTimer = TUNING.bannerSeconds;
   loadWait = 0;
