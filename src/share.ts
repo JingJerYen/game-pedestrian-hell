@@ -3,11 +3,12 @@
 // 文字模板在這裡改（不進 tuning.ts：純文案，跟手感無關）。
 
 const CHALLENGE_PARAM = "challenge";
+const SHARE_GAME_NAME = "行人地獄"; // 分享文字裡的遊戲名（跟標題畫面的 TUNING.title.name 分開，文案用直白的）
 
 // 分享文字：causeTitle 是死亡字幕的標題（「你被汽車撞了 🚗」），拿掉「你」變成第一人稱
-export function buildShareText(gameName: string, distance: number, causeTitle: string): string {
+export function buildShareText(distance: number, causeTitle: string): string {
   const cause = causeTitle.replace(/^你/, "");
-  return `我在《${gameName}》走了 ${Math.floor(distance)} m，${cause}。你能走多遠？`;
+  return `我在《${SHARE_GAME_NAME}》走了 ${Math.floor(distance)} m，${cause}。你能走多遠？`;
 }
 
 // 遊戲網址（不含這次的參數）＋挑戰公尺數

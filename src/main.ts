@@ -280,7 +280,7 @@ function failLevel(cause: DeathCause): void {
     const record = saveBest(walked);
     sub = `你走了 ${walked} m` + (record ? "　🏆 新紀錄！" : `　（最遠紀錄 ${Math.floor(bestDistance)} m）`);
     prompt = "按任意鍵再走一次";
-    sharePayload = { text: buildShareText(TUNING.title.name, walked, caption.title), url: shareUrl(walked) };
+    sharePayload = { text: buildShareText(walked, caption.title), url: shareUrl(walked) };
   } else {
     hearts--;
     sub = hearts > 0 ? `剩 ${hearts} 條命` : "命用完了……";
