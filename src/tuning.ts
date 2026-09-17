@@ -479,6 +479,9 @@ export const TUNING = {
     bikeIntervalEnd: 1.2,
     backdropEveryStages: 1, // 每幾階換一張背景圖（0 = 不換）
     backdrops: [0, 3], // 無盡模式輪用 TUNING.backdrop.sets 的哪幾張（0 起算），照這個順序輪；進場先用第一個
+    // 兩側人行道樣式（整趟固定）：asphalt = 整條幾乎都是停車格（門殺常遇到）、normal = 綠鋪面＋零星路障、none = 沒人行道
+    sidewalkLeft: "asphalt" as SidewalkStyle,
+    sidewalkRight: "asphalt" as SidewalkStyle,
     entryFlavor: "走路環保又健康，但是有點危險...", // 進入無盡模式的橫幅小語
     stageFlavors: ["車好像變多了", "路越來越難走", "台灣的路是走不完的", "還活著嗎？"], // 升階提示輪流用（留空就只顯示公尺數）
   },

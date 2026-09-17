@@ -67,7 +67,7 @@
 | 命 | **一條命**：死了結算「你走了 xxx m」，破紀錄會標示；按鍵從無盡起點再走一次。手寫關卡的 ❤ 在無盡模式不顯示也不扣 |
 | 行人型態 | 固定步行者（速度 1.0），大家條件一樣才能比最遠距離 |
 | 最遠紀錄 | 存瀏覽器 `localStorage`（`endlessBest`），開場橫幅與 HUD 第四列顯示 |
-| 實作 | `levelgen.endlessLevel(maxDistance)` 依距離回傳一份 `LevelConfig`（同一階同一物件），main 每幀拿它餵 traffic / obstacles / intersections，各模組不用知道無盡模式。人行道兩側固定 normal（換鋪面要挪建築，不能中途換） |
+| 實作 | `levelgen.endlessLevel(maxDistance)` 依距離回傳一份 `LevelConfig`（同一階同一物件），main 每幀拿它餵 traffic / obstacles / intersections，各模組不用知道無盡模式。人行道兩側整趟固定（`endless.sidewalkLeft/Right`，預設 asphalt；換鋪面要挪建築，不能中途換） |
 | 測試鍵 | 3 = 跳下一關：手寫關卡一關關跳，最後一關之後是無盡模式，再按回第一關 |
 
 ## 2026-09-11 腳踏車簡化（與使用者確認）
@@ -97,7 +97,7 @@
 | 決策 | 結果 |
 |---|---|
 | 三種樣式 | `normal` 綠鋪面＋「人行道」字（現狀）／`asphalt` 跟車道同色、有路緣白線、沒有字／`none` **那側只有車道**：人行道整條消失、建築貼到車道邊、行人走不進去，該側沒有停車格、路障、腳踏車、直向斑馬線。goalSide 指到 none 側時站上路邊車道就算到達 |
-| 設定 | 左右各自設：關卡表 `sidewalkLeft` / `sidewalkRight`；無盡模式兩側固定 normal。執行期配置在 `tuning.ts` 的 `LAYOUT`，各模組用 `hasSidewalk` / `walkMinX` / `buildingLineX` 讀 |
+| 設定 | 左右各自設：關卡表 `sidewalkLeft` / `sidewalkRight`；無盡模式兩側由 `endless.sidewalkLeft/Right` 決定（2026-09-17 起預設 asphalt：整條停車格，門殺常遇到）。執行期配置在 `tuning.ts` 的 `LAYOUT`，各模組用 `hasSidewalk` / `walkMinX` / `buildingLineX` 讀 |
 
 ## 2026-09-14 騎樓柱子碰撞撤回（使用者決定）
 

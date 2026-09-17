@@ -44,7 +44,7 @@ function build(stage: number): LevelConfig {
     turnChance: lerp(TUNING.intersection.turnChance, e.turnChanceEnd),
     bikeInterval: lerp(e.bikeIntervalStart, e.bikeIntervalEnd),
     hideDistanceHint: true, // HUD 只顯示已走公尺數
-    sidewalkLeft: "normal",
-    sidewalkRight: "normal",
+    sidewalkLeft: e.sidewalkLeft,
+    sidewalkRight: e.sidewalkRight,
   };
 }
