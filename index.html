@@ -44,27 +44,6 @@
         font-size: 22px;
         margin-top: 4px;
       }
-      /* 手機（窄螢幕）：HUD 縮小，不然四行字加愛心會佔掉太多畫面 */
-      @media (max-width: 600px) {
-        #hud {
-          top: 10px;
-          left: 10px;
-        }
-        #hearts {
-          font-size: 20px;
-          letter-spacing: 3px;
-        }
-        #hud .row {
-          font-size: 15px;
-          margin-top: 2px;
-        }
-        #goal {
-          font-size: 14px;
-        }
-        #hint {
-          font-size: 13px;
-        }
-      }
       /* 後方來車警示：紅色「!」在畫面下方閃，依車在左後/右後偏左/偏右並帶箭頭；快追上時閃更快 */
       #warn {
         position: fixed;
@@ -370,6 +349,27 @@
         font-size: 16px;
         user-select: none;
         pointer-events: none;
+      }
+      /* 手機（放在樣式表最後：要蓋過上面 #goal / #hint 的基本尺寸）（窄螢幕）：HUD 縮小，不然四行字加愛心會佔掉太多畫面 */
+      @media (max-width: 600px) {
+        #hud {
+          top: 10px;
+          left: 10px;
+        }
+        #hearts {
+          font-size: 20px;
+          letter-spacing: 3px;
+        }
+        #hud .row {
+          font-size: 15px;
+          margin-top: 2px;
+        }
+        #goal {
+          font-size: 14px;
+        }
+        #hint {
+          font-size: 13px;
+        }
       }
     </style>
   </head>
