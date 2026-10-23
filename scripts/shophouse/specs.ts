@@ -1,6 +1,6 @@
 // 街屋規格表：改數字 → `npm run export:buildings` → GLB 重出（覆蓋）。
 // 遊戲直接載這裡列出的每一棟（src/skins.ts 的 BUILDING_MODELS 要登記同樣的檔名）。
-// 共用的尺寸（騎樓深度、招牌大小、鐵窗大小、水塔、顏色）在 kit.ts 的 KIT。
+// 共用的尺寸（店面留邊、招牌大小、鐵窗大小、水塔、顏色）在 kit.ts 的 KIT。
 //
 // 欄位說明（長度單位都是公尺）：
 //   name        輸出檔名（不含 .glb），會存到 public/assets/models/buildings/
@@ -9,8 +9,8 @@
 //   depth       深度（往後延伸），可省略，預設 KIT.depth = 8。玩家幾乎看不到
 //   wallColor   牆面磁磚色（0xRRGGBB）
 //   signCorner  方形薄片招牌在正面的哪個角："left" 或 "right"；直立長條招牌自動放另一角
-//   bannerH     騎樓上緣那片橫幅招牌板的高度（0.8～1.2 順眼）
-//   bannerLift  橫幅板底部離騎樓上緣多高（0 = 貼著騎樓頂）
+//   bannerH     一樓上緣那片橫幅招牌板的高度（0.8～1.2 順眼）
+//   bannerLift  橫幅板底部離一樓上緣多高（0 = 貼著一樓頂）
 //   plateLift   方形薄片招牌底部離橫幅板頂部多高（越大掛越高）
 //   vsignLift   直立長條招牌底部離二樓地板多高（招牌本身高 3.6，見 KIT.vsign.height）
 //   vsign2Lift  第二片直立招牌的底部離二樓地板多高；它會貼在第一片旁邊往內一點（空隙 KIT.vsignGap）。

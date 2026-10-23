@@ -11,12 +11,12 @@
 
 ```
 decals/
-  stores/<店名>/storefront.png   一樓騎樓內牆：整個店面正面（玻璃門、貨架、燈光）
-  stores/<店名>/banner.png       騎樓上緣橫幅招牌板：店名＋logo
+  stores/<店名>/storefront.png   一樓正面牆：整個店面正面（玻璃門、貨架、燈光）
+  stores/<店名>/banner.png       一樓上緣橫幅招牌板：店名＋logo
   stores/<店名>/cube.png         正面一角垂直凸出的方形薄片招牌，兩面同一張
   stores/<店名>/vsign.png        直立長條招牌，兩側面同一張（直排字）
   windows/<名>.png               鐵窗方塊正面（鐵窗格＋窗簾或冷氣），一棟所有鐵窗同一張
-  walls/<名>.png                 牆面紋理：牆體＋一樓柱子＋女兒牆重複貼，specs.ts 的 wall 欄位指定
+  walls/<名>.png                 牆面紋理：牆體＋女兒牆重複貼，specs.ts 的 wall 欄位指定
 ```
 店名例如 `711`、`familymart`（specs.ts 裡 `store: "711"` 就找 `stores/711/`）。缺哪張，那個槽就留白。
 
@@ -24,7 +24,7 @@ decals/
 
 | 檔 | 尺寸 | 比例 | 對應槽的實際大小 |
 |---|---|---|---|
-| storefront.png | 1024 × 384 | 8:3 | 寬 3.5～5 m × 高 2.9 m |
+| storefront.png | 1024 × 384 | 8:3 | 寬 4.2～5.7 m × 高 2.9 m |
 | banner.png | 1024 × 204 | 5:1 | 寬 4.5～6 m × 高 0.8～1.2 m |
 | cube.png | 512 × 512 | 1:1 | 0.94 × 0.94 m |
 | vsign.png | 256 × 1024 | 1:4 | 寬 0.84 m × 高 3.5 m |

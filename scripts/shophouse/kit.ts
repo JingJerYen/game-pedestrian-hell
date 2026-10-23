@@ -4,13 +4,13 @@
 // 同一張 PNG 多棟共用只下載一次）。
 //
 // 每棟的構造（正面朝 +Z、地面 y=0、面寬置中、往 -Z 延伸）：
-//   一樓 店面：內縮成騎樓，兩根柱子，內牆貼「storefront」；騎樓上緣一片微凸的橫幅板貼「banner」；
+//   一樓 店面：跟樓上同一個牆面（不內縮），正面直接貼「storefront」（左右留一點牆）；一樓上緣一片微凸的橫幅板貼「banner」；
 //         正面一角一片垂直牆面凸出的方形薄片招牌，兩面貼「cube」。
 //   二樓以上 民宅：每層正面兩個凸出的鐵窗方塊貼「window」（二樓的會避開橫幅板：底部一定在板子上緣以上）；
 //         一片直立長條招牌用幾根細支柱從牆面撐出去（spec.vsignOut 決定撐多遠），兩側面貼「vsign」。
 //         左右側牆也有鐵窗方塊（路口轉角看得到）。
 //   屋頂：女兒牆＋圓柱不鏽鋼水塔立在小方柱上。
-//   牆體（樓上牆面、一樓柱子、女兒牆）另成一個「wall」網格：UV 直接用公尺（x/z 對 u、y 對 v），
+//   牆體（整棟牆面、女兒牆）另成一個「wall」網格：UV 直接用公尺（x/z 對 u、y 對 v），
 //   匯出時掛一張 1 m × 1 m 的無縫灰階紋理重複貼、頂點色（wallColor）染色；沒指定紋理就維持純色。
 // 每款的數字在 specs.ts 的表；共用的尺寸和顏色在下面 KIT。
 
@@ -21,8 +21,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 export const KIT = {
   floorHeight: 3.2,
   depth: 8,
-  arcadeDepth: 1.6, // 一樓騎樓內縮多深
-  pillar: 0.45, // 騎樓柱子寬
+  shopSide: 0.15, // 店面貼圖左右各留多少牆
   bannerT: 0.12, // 橫幅招牌板凸出多少
   plate: { size: 1.0, thick: 0.1, out: 1.0 }, // 方形薄片招牌：邊長、厚度、凸出牆面多少
   vsign: { thick: 0.25, height: 3.6, depth: 0.9 }, // 直立長條招牌：厚度、高度、凸出牆面多少
@@ -121,7 +120,7 @@ export interface ShophouseSpec {
   wallColor: number; // 牆面磁磚色
   signCorner: "left" | "right"; // 方形薄片招牌在哪個角（直立招牌在另一角）
   bannerH: number; // 橫幅板高度
-  bannerLift: number; // 橫幅板底離騎樓上緣多高
+  bannerLift: number; // 橫幅板底離一樓上緣多高
   plateLift: number; // 薄片招牌底離橫幅板頂多高
   vsignLift: number; // 直立招牌底離二樓地板多高
   vsign2Lift?: number; // 第二片直立招牌（貼著第一片旁邊、往內一點）底離二樓地板多高；省略 = 只有一片
@@ -164,23 +163,16 @@ export function makeShophouse(spec: ShophouseSpec): Shophouse {
   const wallParts: THREE.BufferGeometry[] = []; // 牆體（貼磁磚紋理的部分）
   const decals = new Map<DecalSlot, THREE.BufferGeometry[]>();
 
-  // 一樓：騎樓（內縮）＋兩根柱子＋店面內牆
-  const a = s.arcadeDepth;
-  addBlock(wallParts, UNIT_BOX, wall, [w, fh, d - a], [0, fh / 2, -a - (d - a) / 2]);
-  for (const sx of [-1, 1]) {
-    addBlock(wallParts, UNIT_BOX, wall, [s.pillar, fh, a], [sx * (w / 2 - s.pillar / 2), fh / 2, -a / 2]);
-  }
-  const shopW = w - 2 * s.pillar - 0.2;
-  addDecal(decals, "storefront", "z", [0, fh / 2, -a + EPS], shopW, fh - 0.3);
+  // 牆體：一整塊（一樓不內縮，店面貼在最外面的牆面上）
+  addBlock(wallParts, UNIT_BOX, wall, [w, H, d], [0, H / 2, -d / 2]);
+  addDecal(decals, "storefront", "z", [0, fh / 2, EPS], w - 2 * s.shopSide, fh - 0.3);
 
-  // 二樓以上：一整塊
-  addBlock(wallParts, UNIT_BOX, wall, [w, H - fh, d], [0, fh + (H - fh) / 2, -d / 2]);
   // 樓板線（深色細條，讓樓層有分界）
   for (let f = 2; f <= floors; f++) {
     addBlock(parts, UNIT_BOX, dark, [w + 0.04, 0.12, 0.06], [0, f * fh - 0.06, 0.03]);
   }
 
-  // 橫幅招牌板：騎樓上緣、微凸；高度與離地每款不同
+  // 橫幅招牌板：一樓上緣、微凸；高度與離地每款不同
   const bannerH = spec.bannerH;
   const bannerY = fh + spec.bannerLift + bannerH / 2;
   addBlock(parts, UNIT_BOX, signBody, [w, bannerH, s.bannerT], [0, bannerY, s.bannerT / 2]);
